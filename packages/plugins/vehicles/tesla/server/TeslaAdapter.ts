@@ -9,6 +9,10 @@ import type { Logger } from "@chargeha/server/lib/Logger";
 import type { PluginDbLogger } from "@chargeha/server/lib/PluginDbLogger";
 import { shortId } from "@chargeha/shared/redact";
 import { DEFAULT_MIN_AMPS } from "./chargerConfig.ts";
+import {
+  type TeslaVehicleData,
+  toAdapterChargeState,
+} from "../shared/vehicleData.ts";
 
 async function retryOn(
   fn: () => Promise<Response>,
@@ -40,57 +44,6 @@ export class TeslaApiError extends Error {
 // Wake-up polling config
 const WAKE_POLL_INTERVAL_MS = 15000;
 const WAKE_TIMEOUT_MS = 60000;
-
-// Some Teslas report charger_phases = 2 on three phases, but 2 is genuine on
-// delta/no-neutral supplies — only charger_power separates the two cases.
-// https://github.com/teslamate-org/teslamate/issues/414
-function correctThreePhase(
-  reported: number | null,
-  amps: number,
-  volts: number,
-  powerKw: number | undefined,
-): number | null {
-  if (reported !== 2 || !powerKw) return reported;
-  // Phase-to-neutral only. A line-to-line reading (~400V) makes the ratio
-  // sqrt(3), which looks exactly like two phases.
-  if (volts < 200 || volts > 260) return reported;
-  // charger_power is integer kW, so below ~10A the quantisation swamps it.
-  if (amps < 10) return reported;
-
-  const ratio = powerKw / ((amps * volts) / 1000);
-  return ratio >= 2.6 && ratio <= 3.4 ? 3 : reported;
-}
-
-interface TeslaChargeState {
-  battery_level?: number;
-  charge_limit_soc?: number;
-  charging_state?: string;
-  charge_amps?: number;
-  charge_current_request_max?: number;
-  charger_power?: number;
-  charger_voltage?: number;
-  charger_phases?: number;
-  charge_energy_added?: number;
-  minutes_to_full_charge?: number;
-  charge_port_door_open?: boolean;
-}
-
-interface TeslaVehicleState {
-  vehicle_name?: string;
-  car_type?: string;
-}
-
-interface TeslaDriveState {
-  latitude?: number;
-  longitude?: number;
-}
-
-interface TeslaVehicleDataResponse {
-  charge_state: TeslaChargeState;
-  vehicle_state?: TeslaVehicleState;
-  drive_state?: TeslaDriveState;
-  state?: string;
-}
 
 interface TeslaVehicleListItem {
   vin: string;
@@ -157,64 +110,11 @@ export class TeslaAdapter implements VehicleAdapter {
     const endpoints = encodeURIComponent(
       "charge_state;vehicle_state;location_data",
     );
-    const data = await this.fleetApiGet<TeslaVehicleDataResponse>(
+    const data = await this.fleetApiGet<TeslaVehicleData>(
       `/api/1/vehicles/${this.vin}/vehicle_data?endpoints=${endpoints}`,
       ctx,
     );
-
-    const response = data.response;
-    const charge = response.charge_state;
-    const vehicle = response.vehicle_state;
-    const drive = response.drive_state;
-    const chargingState = charge.charging_state ?? "Unknown";
-    const chargeAmps = charge.charge_amps ?? 0;
-    const chargerVoltage = charge.charger_voltage ?? 0;
-    // Reported only while charging; null is "unknown", which the engine
-    // resolves from the threePhaseCharger setting.
-    const chargerPhases = correctThreePhase(
-      charge.charger_phases ?? null,
-      chargeAmps,
-      chargerVoltage,
-      charge.charger_power,
-    );
-    // Compute from V × I × phases — Tesla's charger_power field rounds to
-    // integer kW, which misreports e.g. 1.44 kW as 1 and shows 0 during
-    // ramp-up transitions.
-    const chargerPowerKw =
-      Math.round(chargeAmps * chargerVoltage * (chargerPhases ?? 1) / 10) /
-      100;
-    const notChargingStates = [
-      "Disconnected",
-      "Stopped",
-      "Complete",
-      "NoPower",
-    ];
-    const definitelyNotCharging = notChargingStates.includes(chargingState);
-    const chargingStates = ["Charging", "Starting"];
-    const isCharging = chargingStates.includes(chargingState) ||
-      chargerPowerKw > 0.1 || (!definitelyNotCharging && chargeAmps > 0);
-
-    return {
-      vehicleId: this.vin,
-      batteryLevel: charge.battery_level ?? 0,
-      chargeLimit: charge.charge_limit_soc ?? 0,
-      isCharging,
-      isPluggedIn: chargingState !== "Disconnected",
-      isOnline: response.state === "online",
-      chargeAmps,
-      chargeAmpsMax: charge.charge_current_request_max ?? 0,
-      chargeAmpsMin: DEFAULT_MIN_AMPS,
-      chargePowerKw: chargerPowerKw,
-      chargerVoltage,
-      chargerPhases,
-      energyAddedKwh: charge.charge_energy_added ?? 0,
-      minutesToFull: charge.minutes_to_full_charge ?? 0,
-      chargePortOpen: charge.charge_port_door_open ?? false,
-      vehicleName: vehicle?.vehicle_name ?? "Tesla",
-      lastUpdated: new Date().toISOString(),
-      latitude: drive?.latitude ?? null,
-      longitude: drive?.longitude ?? null,
-    };
+    return toAdapterChargeState(this.vin, data.response, DEFAULT_MIN_AMPS);
   }
 
   async startCharging(ctx: CallContext): Promise<boolean> {
