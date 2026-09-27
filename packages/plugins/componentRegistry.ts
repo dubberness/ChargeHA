@@ -18,6 +18,7 @@ export type {
 
 import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergyConfig.tsx";
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
+import { TessieSettings } from "./vehicles/tessie/client/TessieSettings.tsx";
 import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
 import { FroniusCloudConfig } from "./energy/fronius-cloud/client/FroniusCloudConfig.tsx";
 import { FroniusLocalConfig } from "./energy/fronius-local/client/FroniusLocalConfig.tsx";
@@ -59,6 +60,10 @@ import {
   teslaWizardSteps,
 } from "./vehicles/tesla/client/wizardSteps.ts";
 import {
+  tessieVehicleOption,
+  tessieWizardSteps,
+} from "./vehicles/tessie/client/wizardSteps.ts";
+import {
   tapoChargerOption,
   tapoWizardSteps,
 } from "./chargers/tapo/client/wizardSteps.ts";
@@ -82,6 +87,7 @@ export const energyPluginOptions: EnergyPluginOption[] = [
 
 export const vehiclePluginOptions: VehiclePluginOption[] = [
   teslaVehicleOption,
+  tessieVehicleOption,
   {
     id: "simulated",
     label: "Simulated",
@@ -104,6 +110,7 @@ export const vehicleScheduleNotes: PluginScheduleNote[] = [
 
 export const vehiclePluginSteps: Record<string, PluginStepDef[]> = {
   tesla: teslaWizardSteps,
+  tessie: tessieWizardSteps,
   simulated: [],
 };
 
@@ -133,6 +140,7 @@ export const pluginSettingsComponents: Record<
   ComponentType<PluginSettingsProps>
 > = {
   "tesla-settings": TeslaSettings,
+  "tessie-settings": TessieSettings,
   "simulated-settings": SimulatedVehicleSettings,
   "fronius-local-config": FroniusLocalConfig,
   "fronius-cloud-config": FroniusCloudConfig,

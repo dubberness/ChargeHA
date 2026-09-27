@@ -20,6 +20,11 @@ export interface DemoEnergyPluginSummary {
 export const demoVehiclePluginSummaries: DemoVehiclePluginSummary[] = [
   { id: "tesla", displayName: "Tesla", settingsComponentKey: "tesla-settings" },
   {
+    id: "tessie",
+    displayName: "Tessie",
+    settingsComponentKey: "tessie-settings",
+  },
+  {
     id: "simulated",
     displayName: "Simulated",
     settingsComponentKey: "simulated-settings",
@@ -56,6 +61,7 @@ export const demoEnergyPluginSummaries: DemoEnergyPluginSummary[] = [
 // Vehicle adapters whose plugin also has the charger role.
 export const chargerCapableVehicleAdapters: readonly string[] = [
   "tesla",
+  "tessie",
   "simulated",
 ];
 

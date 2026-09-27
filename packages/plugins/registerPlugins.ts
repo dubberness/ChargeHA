@@ -7,6 +7,7 @@ import type { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPlug
 import type { ChargerPluginRegistry } from "@chargeha/server/bootstrap/ChargerPluginRegistry";
 import { TeslaVehiclePlugin } from "./vehicles/tesla/server/index.ts";
 import { TeslaProxyManager } from "./vehicles/tesla/server/TeslaProxyManager.ts";
+import { TessieVehiclePlugin } from "./vehicles/tessie/server/index.ts";
 import { SimulatedVehiclePlugin } from "./vehicles/simulated/server/index.ts";
 import { FroniusLocalPlugin } from "./energy/fronius-local/server/index.ts";
 import { FroniusCloudPlugin } from "./energy/fronius-cloud/server/index.ts";
@@ -40,6 +41,12 @@ export function registerPlugins(
 
   vehicleRegistry.register(teslaPlugin);
   chargerRegistry.register(teslaPlugin);
+
+  // Tesla vehicles through Tessie's API instead of the Fleet API. Same
+  // dual-role registration as the Tesla plugin.
+  const tessiePlugin = new TessieVehiclePlugin(make("tessie"));
+  vehicleRegistry.register(tessiePlugin);
+  chargerRegistry.register(tessiePlugin);
 
   const simulatedPlugin = new SimulatedVehiclePlugin(make("simulated"));
   vehicleRegistry.register(simulatedPlugin);

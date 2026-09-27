@@ -91,7 +91,8 @@ describe("VehicleTypeStep", () => {
       <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
     );
 
-    expect(screen.getByRole("button", { name: /Tesla/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Tesla Connects/ }))
+      .toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Simulated Creates a virtual/ }))
       .toBeInTheDocument();
     expect(screen.getByText(/Tesla Fleet API/)).toBeInTheDocument();
@@ -105,7 +106,7 @@ describe("VehicleTypeStep", () => {
       <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
     );
 
-    expect(screen.getByRole("button", { name: /Tesla/ }))
+    expect(screen.getByRole("button", { name: /^Tesla Not available/ }))
       .toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: /^Simulated Creates a virtual/ }))
       .toHaveAttribute("aria-disabled", "false");
@@ -116,7 +117,7 @@ describe("VehicleTypeStep", () => {
       <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Tesla/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Tesla Connects/ }));
 
     // The step reports what was chosen; the flow decides where that leads.
     expect(mockAdvance).toHaveBeenCalledWith({ vehicleType: "tesla" });

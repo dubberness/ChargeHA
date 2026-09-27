@@ -59,6 +59,7 @@ packages/plugins/
     goodwe-sems/                — GoodWe SEMS Portal (cloud) plugin
   vehicles/
     tesla/                      — Tesla Fleet API plugin (adapter, proxy, tokens, router)
+    tessie/                     — Tesla via the Tessie API (one token, no proxy)
     simulated/                  — Simulated vehicle for dev/demo
 packages/server/src/
   main.ts                    — Entry point. The only file that names both the
