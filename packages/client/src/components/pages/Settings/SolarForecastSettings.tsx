@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, CloudSun, KeyRound, RefreshCw } from "lucide-react";
-import { Badge, Button, Select, Text, TextField } from "@radix-ui/themes";
 import {
+  Badge,
+  Button,
+  Select,
+  Switch,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
+import {
+  FORECAST_LEARN_MIN_DAYS,
   FORECAST_PROVIDER_NAMES,
   FORECAST_PROVIDERS,
+  type ForecastCorrection,
   type ForecastProviderId,
+  type PanelCheck,
   type SolarForecastSite,
   type SolarForecastStatus,
 } from "@chargeha/shared/solarForecast";
@@ -26,6 +36,7 @@ interface Draft {
   provider: ForecastProviderId | "";
   siteIds: string;
   dailyLimit: string;
+  adjust: boolean;
   // Only set while the key is being replaced.
   apiKey: string | null;
 }
@@ -34,6 +45,7 @@ const draftFrom = (status: SolarForecastStatus): Draft => ({
   provider: status.provider ?? "",
   siteIds: status.siteIds.join(", "),
   dailyLimit: String(status.dailyLimit),
+  adjust: status.adjust,
   apiKey: null,
 });
 
@@ -42,6 +54,7 @@ const isDirty = (draft: Draft, status: SolarForecastStatus): boolean => {
   return draft.provider !== saved.provider ||
     draft.siteIds.trim() !== saved.siteIds ||
     draft.dailyLimit !== saved.dailyLimit ||
+    draft.adjust !== saved.adjust ||
     (draft.apiKey !== null && draft.apiKey.trim() !== "");
 };
 
@@ -73,6 +86,95 @@ export function statusLine(
     `${status.usedToday} of ${status.dailyLimit} requests used today`,
   ];
   return parts.filter(Boolean).join(" · ");
+}
+
+// "7 am", "12 pm"
+export function hourLabel(hour: number): string {
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12} ${hour < 12 ? "am" : "pm"}`;
+}
+
+// Hours the correction moves by 5% or more, e.g. "7 am −30%".
+export function adjustedHours(correction: ForecastCorrection): string[] {
+  return correction.hourFactors.flatMap((factor, hour) => {
+    const pct = Math.round((factor - 1) * 100);
+    if (Math.abs(pct) < 5) return [];
+    return [`${hourLabel(hour)} ${pct > 0 ? "+" : "−"}${Math.abs(pct)}%`];
+  });
+}
+
+export function correctionLine(correction: ForecastCorrection | null): string {
+  if (!correction) return "Starts learning after the first full day.";
+  if (correction.days < FORECAST_LEARN_MIN_DAYS) {
+    return `Learning — ${correction.days} of ${FORECAST_LEARN_MIN_DAYS} days so far.`;
+  }
+  return adjustedHours(correction).length === 0
+    ? `Learned from ${correction.days} days — the forecast already matches your system.`
+    : `Learned from ${correction.days} days:`;
+}
+
+export function panelCheckLine(check: PanelCheck | null): string {
+  const pct = Math.round((check?.recentShare ?? 0) * 100);
+  switch (check?.state) {
+    case "ok":
+      return `Normal — recent clear days at ${pct}% of usual.`;
+    case "low":
+      return `Low — recent clear days at ${pct}% of usual. Worth checking the inverter and panels.`;
+    default:
+      return "Waiting for enough clear days to compare.";
+  }
+}
+
+const CHECK_BADGES: Record<
+  PanelCheck["state"],
+  { label: string; color: "green" | "amber" | "gray" }
+> = {
+  ok: { label: "Normal", color: "green" },
+  low: { label: "Low", color: "amber" },
+  waiting: { label: "Waiting", color: "gray" },
+};
+
+function LearningRows(
+  { status, adjust, onAdjust }: {
+    status: SolarForecastStatus;
+    adjust: boolean;
+    onAdjust: (adjust: boolean) => void;
+  },
+) {
+  const { correction, panelCheck } = status;
+  const checkBadge = CHECK_BADGES[panelCheck?.state ?? "waiting"];
+  const hours = correction && correction.days >= FORECAST_LEARN_MIN_DAYS
+    ? adjustedHours(correction)
+    : [];
+  return (
+    <>
+      <SettingsRow
+        label="Adjust to my system"
+        help="Learns, hour by hour, how your output compares with the forecast — shade, dirt, a roof set up slightly off — and corrects the forecast to match."
+      >
+        <Switch
+          aria-label="Adjust to my system"
+          checked={adjust}
+          onCheckedChange={onAdjust}
+        />
+      </SettingsRow>
+      <Text size="1" color="gray">{correctionLine(correction)}</Text>
+      {hours.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {hours.map((label) => (
+            <Badge key={label} size="1" color="gray">{label}</Badge>
+          ))}
+        </div>
+      )}
+      <SettingsRow
+        label="System check"
+        help="Compares clear days with your usual. Turn on Solar Underperforming in Notifications to be told when output drops."
+      >
+        <Badge size="1" color={checkBadge.color}>{checkBadge.label}</Badge>
+      </SettingsRow>
+      <Text size="1" color="gray">{panelCheckLine(panelCheck)}</Text>
+    </>
+  );
 }
 
 function ApiKeyEditor(
@@ -254,6 +356,7 @@ export function SolarForecastSettings() {
       forecastProvider: draft.provider,
       forecastSiteIds: draft.siteIds.trim(),
       forecastDailyLimit: limit,
+      forecastAdjust: draft.adjust,
       ...(draft.apiKey?.trim() ? { apiKey: draft.apiKey.trim() } : {}),
     });
   };
@@ -323,7 +426,16 @@ export function SolarForecastSettings() {
             <FormError message="Enter a whole number of requests, 1 or more." />
           )}
 
-          {configured && <ForecastStatusBlock status={status} />}
+          {configured && (
+            <>
+              <ForecastStatusBlock status={status} />
+              <LearningRows
+                status={status}
+                adjust={draft.adjust}
+                onAdjust={(adjust) => update({ adjust })}
+              />
+            </>
+          )}
         </>
       )}
     </SettingsSection>

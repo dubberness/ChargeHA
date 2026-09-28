@@ -18,6 +18,9 @@ export const miscHandlers: Record<string, QueryHandler> = {
     lastFetchAt: null,
     lastError: null,
     nextFetchAt: null,
+    adjust: true,
+    correction: null,
+    panelCheck: null,
   }),
   "forecast.summary": () => null,
 };

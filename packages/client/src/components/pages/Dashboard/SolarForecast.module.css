@@ -79,3 +79,61 @@
   margin-top: 8px;
   text-align: right;
 }
+
+/* Chart tooltip, themed like the stats chart's */
+.tooltip {
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.tooltipHeader {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--gray-12);
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.tooltipLabel {
+  flex: 1;
+  color: var(--gray-11);
+}
+
+.tooltipValue {
+  margin-left: 12px;
+  font-weight: 500;
+  color: var(--gray-12);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipActual,
+.tooltipForecast,
+.tooltipRange {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.tooltipActual {
+  border-top: 3px solid var(--color-solar);
+}
+
+.tooltipForecast {
+  border-top: 2px dashed var(--color-solar-forecast);
+}
+
+.tooltipRange {
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-solar-forecast);
+  opacity: 0.3;
+}

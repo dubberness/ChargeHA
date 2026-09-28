@@ -29,6 +29,8 @@ import {
   type SolarForecastProvider,
 } from "./forecast-providers/types.ts";
 import { daylightRuns, planNextFetch } from "./forecastSchedule.ts";
+import { type ForecastLearner, readLearningState } from "./ForecastLearner.ts";
+import { activeFactors, applyCorrection } from "./forecastLearning.ts";
 
 // Secret, so it lives outside forecastConfigDef and never reaches the client.
 export const FORECAST_API_KEY = "forecast_api_key";
@@ -112,6 +114,8 @@ export class SolarForecastService {
     providers: SolarForecastProvider[],
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
+    // Learns from the stored forecasts; runs alongside the fetching.
+    private readonly learner: ForecastLearner | null = null,
   ) {
     this.providers = new Map(providers.map((p) => [p.id, p]));
   }
@@ -120,11 +124,13 @@ export class SolarForecastService {
     if (this.timer !== null) return;
     this.timer = setInterval(() => void this.tick(), TICK_MS);
     void this.tick();
+    this.learner?.start();
   }
 
   stop(): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
+    this.learner?.stop();
   }
 
   // Runs the automatic update when the schedule says it is due.
@@ -202,11 +208,12 @@ export class SolarForecastService {
   // ── Status ───────────────────────────────────────────────────────────
 
   async getStatus(): Promise<SolarForecastStatus> {
-    const [config, apiKey, state, next] = await Promise.all([
+    const [config, apiKey, state, next, learning] = await Promise.all([
       this.getConfig(),
       this.db.readSecret(FORECAST_API_KEY),
       this.getState(),
       this.nextFetchMs(),
+      readLearningState(this.db),
     ]);
     return {
       provider: config.forecastProvider || null,
@@ -217,6 +224,9 @@ export class SolarForecastService {
       lastFetchAt: state.lastFetchAt,
       lastError: state.lastError,
       nextFetchAt: next === null ? null : new Date(next).toISOString(),
+      adjust: config.forecastAdjust,
+      correction: learning.correction,
+      panelCheck: learning.panelCheck,
     };
   }
 
@@ -410,7 +420,7 @@ export class SolarForecastService {
       localMidnightUtcMs(date, offsetHoursAt(timezone, date));
     const dates = Array.from({ length: 8 }, (_, i) => addDays(today, i));
     const edges = [...dates, addDays(today, 8)].map(midnightOf);
-    const [periods, actualRows, state] = await Promise.all([
+    const [rawPeriods, actualRows, state, learning] = await Promise.all([
       this.db.forecasts.getPeriods(
         new Date(edges[0]).toISOString(),
         new Date(edges[8]).toISOString(),
@@ -420,7 +430,12 @@ export class SolarForecastService {
         offsetHoursAt(timezone, today),
       ),
       this.getState(),
+      readLearningState(this.db),
     ]);
+    const hourFactors = activeFactors(learning.adjust, learning.correction);
+    const periods = hourFactors
+      ? applyCorrection(rawPeriods, hourFactors, timezone)
+      : rawPeriods;
     if (!periods.some((p) => Date.parse(p.periodStart) < edges[1])) {
       return null;
     }
@@ -455,6 +470,10 @@ export class SolarForecastService {
       days,
       periods: this.summaryPeriods(periods, actualRows, edges, nowMs),
       updatedAt: state.lastFetchAt,
+      adjusted: hourFactors !== null,
+      panelLow: learning.panelCheck?.state === "low"
+        ? { recentShare: learning.panelCheck.recentShare ?? 0 }
+        : null,
     };
   }
 

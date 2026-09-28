@@ -10,6 +10,11 @@ what your system actually produced:
   total for the period, and **Actual vs Forecast** for the hours that have
   passed.
 
+- **Adjusted to your system** — the forecast learns how your roof actually
+  compares with it, hour by hour, and corrects itself (below).
+- **System check** — a warning, and optionally a notification, when your panels
+  make well under their usual output on several clear days.
+
 The forecast is display only. It does not change how charging is controlled.
 
 ## Providers
@@ -86,6 +91,61 @@ comparison and the chart leaves a gap there.
 a clearer day than expected.
 
 Forecasts are kept as long as energy readings (**Data retention** in Settings).
+
+## Adjusted to your system
+
+A forecast service knows your roof only from the location, size, tilt and
+direction you gave it. It cannot see a tree that shades the panels until 9 am, a
+neighbour's roof in the late afternoon, dust, or a tilt entered slightly wrong.
+ChargeHA learns these from your own history.
+
+Once a day, just after midnight, it compares the last **21 days** of what each
+hour of the day actually produced with the **day-ahead** forecast for it, and
+works out a factor for each hour — say 0.7 at 7 am (shaded) and 1.0 at noon.
+Displayed forecasts are multiplied by these factors: the dashboard, the chart,
+the daily totals and the Stats forecast line.
+
+- It needs **7 days** of history before it does anything. Until then Settings →
+  Solar Forecast shows "Learning — 3 of 7 days so far".
+- Only hours with full readings count, so downtime does not teach it that the
+  roof produces nothing.
+- Hours are compared by total energy over the 21 days, so sunny days count most.
+  A cloudy day the forecast got wrong adds little, and misses in both directions
+  mostly cancel out.
+- Hours with little history stay close to 1, and every factor stays between 0.3
+  and 1.5.
+- Three weeks is short enough to follow the sun's path through the seasons as
+  shade moves.
+
+Settings shows the hours it adjusts by 5% or more. Turn **Adjust to my system**
+off to see the provider's forecast unchanged. Learning carries on either way, so
+turning it back on takes effect straight away.
+
+This is like the dampening option in the Home Assistant Solcast integration,
+except the factors are learned rather than set by hand.
+
+## System check
+
+Once a day ChargeHA also checks that the panels are producing what they usually
+do. Weather makes a single day meaningless, so it only uses **clear days**: days
+the forecast made during the day expected most of what the sunniest recent day
+did, and was confident about it (a narrow likely range).
+
+- On each clear day it takes production as a share of that day's forecast.
+- It compares the **3 most recent** clear days (within the last 10 days) with
+  the **usual** share: the median over clear days in the 45 days before them.
+- If all 3 recent clear days come in under **75%** of the usual, the check turns
+  **Low**. The dashboard shows a warning, and the **Solar Underperforming**
+  notification is sent, once, if it is turned on in Settings → Notifications.
+- Days with gaps in the readings are left out.
+
+Because it compares your system with its own usual, it does not matter if the
+forecast always runs high or low for your roof. It needs about six clear days of
+history before it can say anything; until then it shows **Waiting**.
+
+A low result usually means an inverter fault (a string or optimiser down), dirty
+panels, or new shade. Once it has been low for over a month the low days become
+the new usual, so fix it or check it when it first shows.
 
 ## Troubleshooting
 

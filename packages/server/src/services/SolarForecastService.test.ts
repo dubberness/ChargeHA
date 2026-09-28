@@ -311,6 +311,50 @@ describe("SolarForecastService", () => {
         null,
         null,
       ]);
+      expect(summary?.adjusted).toBe(false);
+      expect(summary?.panelLow).toBeNull();
+    });
+
+    it("applies the learned correction and reports low output", async () => {
+      nowMs = Date.parse("2026-09-28T12:00:00Z");
+      await db.forecasts.upsertPeriods(
+        [{ ...period("2026-09-28T13:00:00.000Z", 4000), isDayAhead: false }],
+        new Date("2026-09-28T09:00:00Z"),
+      );
+      await db.setConfig(
+        "forecast_correction",
+        JSON.stringify({
+          hourFactors: Array.from({ length: 24 }, (_, h) => h === 13 ? 0.5 : 1),
+          days: 14,
+          learnedOn: "2026-09-28",
+        }),
+      );
+      await db.setConfig(
+        "forecast_panel_check",
+        JSON.stringify({
+          state: "low",
+          recentShare: 0.6,
+          recentDays: ["2026-09-25", "2026-09-26", "2026-09-27"],
+          checkedOn: "2026-09-28",
+        }),
+      );
+      const { service } = await setup();
+
+      const summary = await service.getSummary();
+
+      expect(summary?.today.forecastWh).toBe(1000);
+      expect(summary?.adjusted).toBe(true);
+      expect(summary?.panelLow).toEqual({ recentShare: 0.6 });
+      const status = await service.getStatus();
+      expect(status.adjust).toBe(true);
+      expect(status.correction?.days).toBe(14);
+      expect(status.panelCheck?.state).toBe("low");
+    });
+
+    it("saves turning the correction off", async () => {
+      const { service } = await setup();
+      await service.saveSettings({ forecastAdjust: false });
+      expect((await service.getStatus()).adjust).toBe(false);
     });
   });
 

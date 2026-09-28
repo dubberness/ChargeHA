@@ -23,6 +23,7 @@ import { TariffService } from "../services/TariffService.ts";
 import { StatsService } from "../services/StatsService.ts";
 import { SolarForecastService } from "../services/SolarForecastService.ts";
 import { SolcastProvider } from "../services/forecast-providers/SolcastProvider.ts";
+import { ForecastLearner } from "../services/ForecastLearner.ts";
 import { ConfigService } from "../services/ConfigService.ts";
 import { GeocodeService } from "../services/GeocodeService.ts";
 import { OidcService } from "../services/OidcService.ts";
@@ -89,6 +90,7 @@ function buildAuxServices(
     vehicleManager,
     configService,
     chargingPointManager,
+    notificationService,
   }: {
     db: AppDatabase;
     encryptionKey: string | null;
@@ -98,6 +100,7 @@ function buildAuxServices(
     vehicleManager: VehicleManager;
     configService: ConfigService;
     chargingPointManager: ChargingPointManager;
+    notificationService: NotificationService;
   },
 ) {
   const tariffService = new TariffService(
@@ -109,6 +112,12 @@ function buildAuxServices(
     db,
     [new SolcastProvider()],
     new Logger("SolarForecast", logLevel),
+    undefined,
+    new ForecastLearner(
+      db,
+      notificationService,
+      new Logger("ForecastLearner", logLevel),
+    ),
   );
   const geocodeService = new GeocodeService(new Logger("Geocode", logLevel));
   const oidcService = new OidcService(
@@ -324,6 +333,7 @@ function buildServices(
     vehicleManager,
     configService,
     chargingPointManager,
+    notificationService,
   });
   const {
     tariffService,

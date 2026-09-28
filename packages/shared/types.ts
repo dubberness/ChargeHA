@@ -264,7 +264,8 @@ export type NotificationEventType =
   | "schedule_activated"
   | "safety_trip"
   | "mode_changed"
-  | "arrived_home_not_plugged_in";
+  | "arrived_home_not_plugged_in"
+  | "solar_underperforming";
 
 export interface NotificationEventInfo {
   key: NotificationEventType;
@@ -345,6 +346,12 @@ export const NOTIFICATION_EVENTS: NotificationEventInfo[] = [
     label: "Plug-in Reminder",
     description:
       "Reminds you to plug in when you arrive home below the charge target",
+  },
+  {
+    key: "solar_underperforming",
+    label: "Solar Underperforming",
+    description:
+      "Panels made well under their usual output on several clear days (needs Solar Forecast)",
   },
 ];
 

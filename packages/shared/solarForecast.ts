@@ -25,6 +25,33 @@ export interface SolarForecastSite {
   capacityKw: number | null;
 }
 
+// Days of history needed before the learned correction is used.
+export const FORECAST_LEARN_MIN_DAYS = 7;
+
+// How the system's output has compared with the forecast, hour by hour,
+// learned from recent history. See docs/solar-forecast.md.
+export interface ForecastCorrection {
+  // Multiplier for each local hour of the day, 0–23. 1 where there is too
+  // little history to say.
+  hourFactors: number[];
+  // Days of history it was learned from.
+  days: number;
+  learnedOn: string; // YYYY-MM-DD, local
+}
+
+// "waiting" until there are enough clear days to compare.
+export type PanelCheckState = "ok" | "low" | "waiting";
+
+// Whether the system is producing what it usually does on clear days.
+export interface PanelCheck {
+  state: PanelCheckState;
+  // Output on the latest clear days as a share of the usual, e.g. 0.62.
+  recentShare: number | null;
+  // The latest clear days the check is based on (YYYY-MM-DD, local).
+  recentDays: string[];
+  checkedOn: string; // YYYY-MM-DD, local
+}
+
 export interface SolarForecastStatus {
   provider: ForecastProviderId | null;
   apiKeySet: boolean;
@@ -37,6 +64,10 @@ export interface SolarForecastStatus {
   lastError: string | null;
   // When the next automatic update will run, or null when none is planned.
   nextFetchAt: string | null;
+  // Whether displayed forecasts use the learned correction.
+  adjust: boolean;
+  correction: ForecastCorrection | null;
+  panelCheck: PanelCheck | null;
 }
 
 export interface SolarForecastDay {
@@ -68,6 +99,10 @@ export interface SolarForecastSummary {
   // Today and tomorrow, one entry per forecast period.
   periods: SolarForecastSummaryPeriod[];
   updatedAt: string | null;
+  // True when the figures include the learned correction.
+  adjusted: boolean;
+  // Set while the system is producing well under its usual clear-day output.
+  panelLow: { recentShare: number } | null;
 }
 
 export const periodEndMs = (period: SolarForecastPeriod): number =>

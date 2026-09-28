@@ -1,6 +1,6 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { sql } from "drizzle-orm";
-import { sqliteTimezoneOffset } from "./sqliteHelpers.ts";
+import { sqliteTimezoneOffset, toSqliteDatetime } from "./sqliteHelpers.ts";
 
 export class StatsRepository {
   constructor(private db: BetterSQLite3Database) {}
@@ -298,6 +298,34 @@ export class StatsRepository {
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
+    }));
+  }
+
+  /** Average solar production in each UTC 15-minute bucket with readings in
+   *  [start, end), and how many readings it has, so a caller can tell a
+   *  bucket with a gap in the recording from a dull one. */
+  async getSolarProductionBuckets(
+    startIso: string,
+    endIso: string,
+  ): Promise<Array<{ startMs: number; avgW: number; readings: number }>> {
+    const rows = await this.db.all<{
+      bucket_start: number;
+      avg_w: number;
+      readings: number;
+    }>(sql`SELECT
+              CAST(strftime('%s', timestamp) AS INTEGER) / 900 * 900 AS bucket_start,
+              AVG(solar_production_w) AS avg_w,
+              COUNT(*) AS readings
+            FROM energy_readings
+            WHERE timestamp >= ${toSqliteDatetime(startIso)}
+              AND timestamp < ${toSqliteDatetime(endIso)}
+              AND poll_failed = 0
+            GROUP BY bucket_start
+            ORDER BY bucket_start`);
+    return rows.map((row) => ({
+      startMs: row.bucket_start * 1000,
+      avgW: row.avg_w ?? 0,
+      readings: row.readings,
     }));
   }
 

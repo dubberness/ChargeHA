@@ -1,6 +1,13 @@
 import { useMemo } from "react";
-import { CalendarDays, CloudSun, Hourglass, Sun, Sunrise } from "lucide-react";
-import { Card, Text } from "@radix-ui/themes";
+import {
+  CalendarDays,
+  CloudSun,
+  Hourglass,
+  Sun,
+  Sunrise,
+  TriangleAlert,
+} from "lucide-react";
+import { Callout, Card, Text } from "@radix-ui/themes";
 import {
   Area,
   CartesianGrid,
@@ -53,6 +60,30 @@ export function trackingLabel(
   return `${pct > 0 ? "+" : ""}${pct}% vs forecast so far`;
 }
 
+// "Forecast updated 12m ago · adjusted to your system"
+export function updatedLabel(summary: SolarForecastSummary): string | null {
+  if (!summary.updatedAt) return null;
+  const updated = `Forecast updated ${
+    formatRelativeTime(new Date(summary.updatedAt))
+  }`;
+  return summary.adjusted ? `${updated} · adjusted to your system` : updated;
+}
+
+function PanelLowWarning({ recentShare }: { recentShare: number }) {
+  return (
+    <Callout.Root color="amber" size="1" role="status">
+      <Callout.Icon>
+        <TriangleAlert size={14} />
+      </Callout.Icon>
+      <Callout.Text>
+        Your solar made about{" "}
+        {Math.round(recentShare * 100)}% of its usual output on recent clear
+        days. Worth checking the inverter and panels.
+      </Callout.Text>
+    </Callout.Root>
+  );
+}
+
 const rangeLabel = (day: SolarForecastDay) =>
   `Likely ${(day.forecastWh10 / 1000).toFixed(1)}–${
     (day.forecastWh90 / 1000).toFixed(1)
@@ -94,6 +125,51 @@ function ForecastMetrics({ summary }: { summary: SolarForecastSummary }) {
           subtitle={rangeLabel(tomorrow)}
         />
       )}
+    </div>
+  );
+}
+
+interface ForecastTooltipProps {
+  format: Intl.DateTimeFormat;
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: ChartPoint }>;
+}
+
+// Recharts' default tooltip is white with series-coloured text, which is
+// hard to read in dark mode; this follows the theme like the stats chart's.
+export function ForecastTooltip(
+  { format, active, payload }: ForecastTooltipProps,
+) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  const actual = {
+    label: "Actual",
+    value: `${point.actualKw} kW`,
+    className: styles.tooltipActual,
+  };
+  const rows = [
+    ...(point.actualKw === null ? [] : [actual]),
+    {
+      label: "Forecast",
+      value: `${point.forecastKw} kW`,
+      className: styles.tooltipForecast,
+    },
+    {
+      label: "Likely range",
+      value: `${point.rangeKw[0]}–${point.rangeKw[1]} kW`,
+      className: styles.tooltipRange,
+    },
+  ];
+  return (
+    <div className={styles.tooltip}>
+      <div className={styles.tooltipHeader}>{format.format(point.t)}</div>
+      {rows.map((row) => (
+        <div key={row.label} className={styles.tooltipRow}>
+          <span className={row.className} />
+          <span className={styles.tooltipLabel}>{row.label}</span>
+          <span className={styles.tooltipValue}>{row.value}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -142,15 +218,7 @@ function ForecastChart(
             tickFormatter={(v: number) => `${v} kW`}
             width={52}
           />
-          <Tooltip
-            labelFormatter={(t: number) => hourMinute.format(t)}
-            formatter={(value: number | number[], name: string) => [
-              Array.isArray(value)
-                ? `${value[0]}–${value[1]} kW`
-                : `${value} kW`,
-              name,
-            ]}
-          />
+          <Tooltip content={<ForecastTooltip format={hourMinute} />} />
           <Area
             dataKey="rangeKw"
             name="Likely range"
@@ -242,6 +310,7 @@ export function SolarForecastCard() {
     [summary],
   );
   if (!summary) return null;
+  const updated = updatedLabel(summary);
 
   return (
     <div className={dashboardStyles.metricsSection}>
@@ -253,6 +322,9 @@ export function SolarForecastCard() {
       >
         Solar Forecast
       </Text>
+      {summary.panelLow && (
+        <PanelLowWarning recentShare={summary.panelLow.recentShare} />
+      )}
       <ForecastMetrics summary={summary} />
       <Card>
         <div className={styles.header}>
@@ -265,9 +337,9 @@ export function SolarForecastCard() {
         </div>
         <ForecastChart points={points} timezone={timezone} />
         {summary.days.length > 2 && <DayStrip days={summary.days} />}
-        {summary.updatedAt && (
+        {updated && (
           <Text size="1" color="gray" className={styles.updated}>
-            Forecast updated {formatRelativeTime(new Date(summary.updatedAt))}
+            {updated}
           </Text>
         )}
       </Card>
