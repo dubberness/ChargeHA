@@ -12,6 +12,13 @@ import { DEFAULT_MIN_AMPS } from "./chargerConfig.ts";
 // cost model to tune — this only keeps the request rate polite.
 export const STATE_CACHE_MS = 60_000;
 
+// After a command the car is read again on every tick until Tessie reports a
+// reading taken after it, so a command the car accepted but did not act on is
+// caught within a tick. Tessie only refreshes about once a minute, so the
+// first re-read often still predates the command; this caps the wait if
+// Tessie stops updating (e.g. the car fell asleep).
+export const COMMAND_CONFIRM_MS = 3 * 60_000;
+
 // Tessie vehicle middleware. Much simpler than the Tesla Fleet one: Tessie
 // serves its own last-known state without waking the car, and its commands
 // wake the car themselves, so there is no wake budget to protect.
@@ -21,6 +28,8 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
   // config. Held here so both roles report the same number.
   private minAmps = DEFAULT_MIN_AMPS;
   private lastFetchAtMs = 0;
+  // When the last successful command was sent, until a reading confirms it.
+  private unconfirmedCommandAtMs: number | null = null;
 
   constructor(
     private readonly adapter: TessieAdapter,
@@ -53,7 +62,9 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
     context: VehicleRequestContext,
   ): Promise<AdapterVehicleChargeState | null> {
     const age = Date.now() - this.lastFetchAtMs;
-    if (!context.forceRefresh && this.cachedState && age < STATE_CACHE_MS) {
+    const cacheUsable = this.cachedState !== null &&
+      this.unconfirmedCommandAtMs === null && age < STATE_CACHE_MS;
+    if (!context.forceRefresh && cacheUsable) {
       this.logger.debug(`Cache fresh (age=${Math.round(age / 1000)}s)`);
       return this.getCachedState();
     }
@@ -74,16 +85,11 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
 
   async startCharging(ctx: CallContext): Promise<boolean> {
     const ok = await this.adapter.startCharging(ctx);
-    if (ok && this.cachedState) {
-      this.cachedState = {
-        ...this.cachedState,
-        isCharging: true,
-        lastUpdated: new Date().toISOString(),
-      };
-      // Expire the cache so the next tick reads real charger voltage/phases,
-      // which the car only reports while charging.
-      this.lastFetchAtMs = 0;
-    } else if (!ok) {
+    if (ok) {
+      // The re-read also picks up real charger voltage/phases, which the car
+      // only reports while charging.
+      this.expectAfterCommand({ isCharging: true });
+    } else {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
     return ok;
@@ -91,15 +97,13 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
 
   async stopCharging(ctx: CallContext): Promise<boolean> {
     const ok = await this.adapter.stopCharging(ctx);
-    if (ok && this.cachedState) {
-      this.cachedState = {
-        ...this.cachedState,
+    if (ok) {
+      this.expectAfterCommand({
         isCharging: false,
         chargePowerKw: 0,
         chargeAmps: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-    } else if (!ok) {
+      });
+    } else {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
     return ok;
@@ -107,16 +111,26 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
 
   async setChargeAmps(amps: number, ctx: CallContext): Promise<boolean> {
     const ok = await this.adapter.setChargeAmps(amps, ctx);
-    if (ok && this.cachedState) {
-      this.cachedState = {
-        ...this.cachedState,
-        chargeAmps: amps,
-        lastUpdated: new Date().toISOString(),
-      };
-    } else if (!ok) {
+    if (ok) {
+      this.expectAfterCommand({ chargeAmps: amps });
+    } else {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
     return ok;
+  }
+
+  // Tessie accepting a command means the car acknowledged it, not that it
+  // acted on it — a car still ramping up can drop a second amps change. Show
+  // the expected result now, and re-read until a reading confirms it.
+  private expectAfterCommand(patch: Partial<AdapterVehicleChargeState>): void {
+    const now = Date.now();
+    this.unconfirmedCommandAtMs = now;
+    if (!this.cachedState) return;
+    this.cachedState = {
+      ...this.cachedState,
+      ...patch,
+      lastUpdated: new Date(now).toISOString(),
+    };
   }
 
   // The car refused the command, so the cache is out of step with it.
@@ -132,9 +146,27 @@ export class TessieVehicleMiddleware implements VehicleMiddleware {
     ctx: CallContext,
   ): Promise<AdapterVehicleChargeState> {
     const state = await this.adapter.getChargeState(ctx);
-    this.cachedState = state;
     this.lastFetchAtMs = Date.now();
+    const expected = this.getCachedState();
+    if (expected && this.predatesUnconfirmedCommand(state)) {
+      this.logger.debug("Tessie has not reported since the last command yet");
+      return expected;
+    }
+    this.unconfirmedCommandAtMs = null;
+    this.cachedState = state;
     return { ...state, chargeAmpsMin: this.minAmps };
+  }
+
+  // A reading taken before the last command says nothing about whether the
+  // car acted on it. Keep the expected state and read again next tick — until
+  // COMMAND_CONFIRM_MS, after which the reading is taken as it is.
+  private predatesUnconfirmedCommand(
+    state: AdapterVehicleChargeState,
+  ): boolean {
+    const sentAt = this.unconfirmedCommandAtMs;
+    if (sentAt === null) return false;
+    if (Date.now() - sentAt >= COMMAND_CONFIRM_MS) return false;
+    return Date.parse(state.lastUpdated) < sentAt;
   }
 }
 
