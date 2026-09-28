@@ -6,6 +6,8 @@ import {
   localMidnightUtcMs,
   periodEndMs,
 } from "@chargeha/shared/solarForecast";
+import { loadActiveCorrection } from "./ForecastLearner.ts";
+import { applyCorrection } from "./forecastLearning.ts";
 import type {
   EnergyBucket,
   SolarProductionPoint,
@@ -195,11 +197,17 @@ export class StatsService {
     response: StatsResponse,
     edgesMs: number[],
   ): Promise<StatsResponse> {
-    const periods = await this.db.forecasts.getPeriods(
-      new Date(edgesMs[0]).toISOString(),
-      new Date(edgesMs[edgesMs.length - 1]).toISOString(),
-    );
-    if (periods.length === 0) return response;
+    const [rawPeriods, correction] = await Promise.all([
+      this.db.forecasts.getPeriods(
+        new Date(edgesMs[0]).toISOString(),
+        new Date(edgesMs[edgesMs.length - 1]).toISOString(),
+      ),
+      loadActiveCorrection(this.db),
+    ]);
+    if (rawPeriods.length === 0) return response;
+    const periods = correction
+      ? applyCorrection(rawPeriods, correction.hourFactors, correction.timezone)
+      : rawPeriods;
     const nowMs = this.now();
     const perBucket = bucketForecastWh(
       periods,

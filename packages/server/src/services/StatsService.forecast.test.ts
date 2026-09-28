@@ -113,4 +113,47 @@ describe("StatsService solar forecast", () => {
     expect(year.energyBuckets[8].forecastWh).toBe(2000);
     expect(year.forecastSolarWh).toBe(2000);
   });
+
+  describe("with a learned correction", () => {
+    const learn = (hourFactors: Record<number, number>, days = 14) =>
+      db.setConfig(
+        "forecast_correction",
+        JSON.stringify({
+          hourFactors: Array.from(
+            { length: 24 },
+            (_, h) => hourFactors[h] ?? 1,
+          ),
+          days,
+          learnedOn: "2026-09-28",
+        }),
+      );
+
+    it("scales the forecast by the local hour's factor", async () => {
+      // 00:00Z is 10:00 in Brisbane.
+      await forecast("2026-09-28T00:00:00Z", 2000, 1600);
+      await learn({ 10: 0.5 });
+
+      const day = await stats.buildDayStats("2026-09-28", undefined, false);
+
+      expect(day.energyBuckets[10].forecastWh).toBe(400);
+      expect(day.forecastSolarWh).toBe(400);
+    });
+
+    it("uses the forecast as it is when switched off or still learning", async () => {
+      await forecast("2026-09-28T00:00:00Z", 2000, 1600);
+      await learn({ 10: 0.5 }, 3);
+
+      const learning = await stats.buildDayStats(
+        "2026-09-28",
+        undefined,
+        false,
+      );
+      expect(learning.energyBuckets[10].forecastWh).toBe(800);
+
+      await learn({ 10: 0.5 });
+      await db.setConfig("forecast_adjust", "false");
+      const off = await stats.buildDayStats("2026-09-28", undefined, false);
+      expect(off.energyBuckets[10].forecastWh).toBe(800);
+    });
+  });
 });

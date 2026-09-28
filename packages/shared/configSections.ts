@@ -235,6 +235,12 @@ export const forecastConfigDef = defineSection({
     schema: z.number().int().min(1).max(10_000),
     default: 10,
   },
+  // Scale displayed forecasts by how this system has compared with them.
+  forecastAdjust: {
+    key: "forecast_adjust",
+    schema: z.boolean(),
+    default: true,
+  },
 });
 export type ForecastConfig = SectionType<typeof forecastConfigDef>;
 
@@ -259,6 +265,18 @@ export const forecastStateDef = defineSection({
   },
   forecastLastError: {
     key: "forecast_last_error",
+    schema: z.string(),
+    default: "",
+  },
+  // JSON ForecastCorrection, relearned each day.
+  forecastCorrection: {
+    key: "forecast_correction",
+    schema: z.string(),
+    default: "",
+  },
+  // JSON PanelCheck, rechecked each day.
+  forecastPanelCheck: {
+    key: "forecast_panel_check",
     schema: z.string(),
     default: "",
   },

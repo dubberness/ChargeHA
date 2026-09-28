@@ -4,6 +4,7 @@ import { cleanup, screen } from "@testing-library/react";
 import type { SolarForecastSummary } from "@chargeha/shared/solarForecast";
 import { renderWithProviders } from "../../../test-utils.tsx";
 import {
+  ForecastTooltip,
   SolarForecastCard,
   toChartPoints,
   trackingLabel,
@@ -61,6 +62,8 @@ describe("SolarForecastCard", () => {
       actualW: 2500,
     }],
     updatedAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+    adjusted: false,
+    panelLow: null,
   };
 
   beforeEach(() => {
@@ -97,6 +100,63 @@ describe("SolarForecastCard", () => {
     expect(screen.getByText("Forecast Tomorrow")).toBeInTheDocument();
     expect(screen.getByLabelText("Daily forecast")).toHaveTextContent("Today");
     expect(screen.getByText("Forecast updated 12m ago")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("says when the forecast is adjusted to the system", () => {
+    vi.mocked(trpc.forecast.summary.useQuery).mockReturnValue(
+      { data: { ...summary, adjusted: true } } as never,
+    );
+    renderWithProviders(<SolarForecastCard />);
+
+    expect(
+      screen.getByText("Forecast updated 12m ago · adjusted to your system"),
+    ).toBeInTheDocument();
+  });
+
+  it("warns when the panels are making less than usual", () => {
+    vi.mocked(trpc.forecast.summary.useQuery).mockReturnValue(
+      { data: { ...summary, panelLow: { recentShare: 0.62 } } } as never,
+    );
+    renderWithProviders(<SolarForecastCard />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "about 62% of its usual output",
+    );
+  });
+
+  describe("ForecastTooltip", () => {
+    const format = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const point = toChartPoints(summary)[0];
+
+    it("lists actual, forecast and range for a past period", () => {
+      renderWithProviders(
+        <ForecastTooltip
+          format={format}
+          active
+          payload={[{ payload: point }]}
+        />,
+      );
+      expect(screen.getByText("2:00 AM")).toBeInTheDocument();
+      expect(screen.getByText("2.5 kW")).toBeInTheDocument();
+      expect(screen.getByText("3 kW")).toBeInTheDocument();
+      expect(screen.getByText("2–4 kW")).toBeInTheDocument();
+    });
+
+    it("leaves out actual for a period still to come", () => {
+      renderWithProviders(
+        <ForecastTooltip
+          format={format}
+          active
+          payload={[{ payload: { ...point, actualKw: null } }]}
+        />,
+      );
+      expect(screen.queryByText("Actual")).not.toBeInTheDocument();
+    });
   });
 
   describe("trackingLabel", () => {

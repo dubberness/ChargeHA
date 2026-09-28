@@ -5,7 +5,11 @@ import type { SolarForecastStatus } from "@chargeha/shared/solarForecast";
 import type { SectionProps, SettingsRowProps } from "./SettingsLayout.tsx";
 import { renderWithProviders } from "../../../test-utils.tsx";
 import {
+  adjustedHours,
+  correctionLine,
   formatSite,
+  hourLabel,
+  panelCheckLine,
   SolarForecastSettings,
   statusLine,
 } from "./SolarForecastSettings.tsx";
@@ -91,8 +95,14 @@ describe("SolarForecastSettings", () => {
     lastFetchAt: null,
     lastError: null,
     nextFetchAt: null,
+    adjust: true,
+    correction: null,
+    panelCheck: null,
     ...overrides,
   });
+
+  const factors = (overrides: Record<number, number>) =>
+    Array.from({ length: 24 }, (_, h) => overrides[h] ?? 1);
 
   const withStatus = (value: SolarForecastStatus) =>
     vi.mocked(trpc.forecast.status.useQuery).mockReturnValue(
@@ -191,7 +201,51 @@ describe("SolarForecastSettings", () => {
       forecastProvider: "solcast",
       forecastSiteIds: "abcd-1234",
       forecastDailyLimit: 50,
+      forecastAdjust: true,
     });
+  });
+
+  it("saves turning the adjustment off", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.click(screen.getByLabelText("Adjust to my system"));
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(h.saveMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ forecastAdjust: false }),
+    );
+  });
+
+  it("lists the hours the learned correction moves", () => {
+    withStatus(status({
+      correction: {
+        hourFactors: factors({ 7: 0.7, 12: 1.06 }),
+        days: 21,
+        learnedOn: "2026-09-28",
+      },
+    }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByText("Learned from 21 days:")).toBeInTheDocument();
+    expect(screen.getByText("7 am −30%")).toBeInTheDocument();
+    expect(screen.getByText("12 pm +6%")).toBeInTheDocument();
+  });
+
+  it("shows the system check result", () => {
+    withStatus(status({
+      panelCheck: {
+        state: "low",
+        recentShare: 0.62,
+        recentDays: ["2026-09-25", "2026-09-26", "2026-09-27"],
+        checkedOn: "2026-09-28",
+      },
+    }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByText("Low")).toBeInTheDocument();
+    expect(screen.getByText(/recent clear days at 62% of usual/))
+      .toBeInTheDocument();
   });
 
   it("will not save a limit that is not a whole number", () => {
@@ -245,6 +299,35 @@ describe("SolarForecastSettings", () => {
         }),
       );
       expect(line).toMatch(/^Updated 5m ago · next at .+ · 3 of 10/);
+    });
+  });
+
+  describe("learning labels", () => {
+    it("names hours on a 12-hour clock", () => {
+      expect([0, 7, 12, 17].map(hourLabel))
+        .toEqual(["12 am", "7 am", "12 pm", "5 pm"]);
+    });
+
+    it("leaves out hours moved by less than 5%", () => {
+      const correction = {
+        hourFactors: factors({ 8: 0.97, 9: 1.2 }),
+        days: 10,
+        learnedOn: "2026-09-28",
+      };
+      expect(adjustedHours(correction)).toEqual(["9 am +20%"]);
+    });
+
+    it("counts the days while still learning", () => {
+      expect(correctionLine({
+        hourFactors: factors({}),
+        days: 3,
+        learnedOn: "2026-09-28",
+      })).toBe("Learning — 3 of 7 days so far.");
+      expect(correctionLine(null)).toMatch(/first full day/);
+    });
+
+    it("waits until there are clear days to compare", () => {
+      expect(panelCheckLine(null)).toMatch(/^Waiting/);
     });
   });
 

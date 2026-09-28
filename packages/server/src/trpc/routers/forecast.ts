@@ -8,6 +8,7 @@ const settingsInput = z.object({
   forecastSiteIds: forecastConfigDef.forecastSiteIds.schema.max(500)
     .optional(),
   forecastDailyLimit: forecastConfigDef.forecastDailyLimit.schema.optional(),
+  forecastAdjust: forecastConfigDef.forecastAdjust.schema.optional(),
   // Write-only: status reports whether a key is set, never the key.
   apiKey: z.string().max(500).optional(),
 });
