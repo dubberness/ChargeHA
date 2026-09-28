@@ -7,9 +7,8 @@ import { AppDatabase } from "../db/AppDatabase.ts";
 import { Logger } from "../lib/Logger.ts";
 import { ForecastLearner, readLearningState } from "./ForecastLearner.ts";
 
-const DAY_MS = 86_400_000;
-
 describe("ForecastLearner", () => {
+  const DAY_MS = 86_400_000;
   let db: AppDatabase;
   let nowMs: number;
   let sent: Array<{ eventType: NotificationEventType; message: string }>;

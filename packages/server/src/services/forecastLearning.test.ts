@@ -14,13 +14,13 @@ import {
   samplePeriods,
 } from "./forecastLearning.ts";
 
-const ms = (iso: string) => Date.parse(iso);
-
-const dateAfter = (start: string, days: number) =>
-  new Date(ms(`${start}T00:00:00Z`) + days * 86_400_000)
-    .toISOString().slice(0, 10);
-
 describe("forecastLearning", () => {
+  const ms = (iso: string) => Date.parse(iso);
+
+  const dateAfter = (start: string, days: number) =>
+    new Date(ms(`${start}T00:00:00Z`) + days * 86_400_000)
+      .toISOString().slice(0, 10);
+
   describe("localHour", () => {
     it("gives the hour in the site's zone", () => {
       expect(localHour(ms("2026-09-28T00:30:00Z"), "UTC")).toBe(0);
