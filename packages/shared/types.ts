@@ -407,6 +407,9 @@ export interface EnergyBucket {
   totalWh: number; // Total home consumption
   costCents?: number; // Grid import cost in cents (only when tariff rates exist)
   solarSavingsCents?: number; // Solar self-consumption savings in cents
+  // Forecast solar production in this bucket. Only present when a solar
+  // forecast covers the stats range. Past buckets use the day-ahead forecast.
+  forecastWh?: number;
 }
 
 export interface SolarProductionPoint {
@@ -448,6 +451,12 @@ export interface StatsResponse {
 
   // Vehicle battery levels per bucket (day view only — indexed same as buckets[])
   vehicleSoc?: VehicleSocSnapshot[][];
+
+  // Solar forecast for the whole range, including hours still to come.
+  forecastSolarWh?: number;
+  // Forecast and measured production over the finished part of the range
+  // that a forecast covers — a like-for-like accuracy check.
+  forecastComparison?: { forecastWh: number; actualWh: number };
 }
 
 export interface TariffBreakdownEntry {

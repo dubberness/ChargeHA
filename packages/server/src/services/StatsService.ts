@@ -1,5 +1,11 @@
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import { offsetHoursAt } from "@chargeha/shared/timezone";
+import {
+  bucketForecastWh,
+  effectiveForecastW,
+  localMidnightUtcMs,
+  periodEndMs,
+} from "@chargeha/shared/solarForecast";
 import type {
   EnergyBucket,
   SolarProductionPoint,
@@ -37,7 +43,10 @@ interface CostInfo {
 }
 
 export class StatsService {
-  constructor(private db: AppDatabase) {}
+  constructor(
+    private db: AppDatabase,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   private async offsetFor(isoDate: string): Promise<number> {
     const timezone = (await this.db.getConfig("timezone")) || "UTC";
@@ -50,9 +59,18 @@ export class StatsService {
     detailed: boolean,
   ): Promise<StatsResponse> {
     const tz = await this.offsetFor(date);
-    return detailed
+    const response = detailed
       ? await this.buildDetailedDayStats(date, tz, vehicleId)
       : await this.buildHourlyDayStats(date, tz, vehicleId);
+    const bucketMs = detailed ? 15 * 60_000 : 60 * 60_000;
+    const midnight = localMidnightUtcMs(date, tz);
+    return await this.withForecast(
+      response,
+      Array.from(
+        { length: response.energyBuckets.length + 1 },
+        (_, i) => midnight + i * bucketMs,
+      ),
+    );
   }
 
   async buildMonthStats(
@@ -90,7 +108,7 @@ export class StatsService {
       numDays,
     );
 
-    return this.buildResponse(
+    const response = this.buildResponse(
       "month",
       startDate,
       endDate,
@@ -104,6 +122,16 @@ export class StatsService {
         ...currency,
       },
     );
+    // One bucket per day: local midnights from the 1st to the next 1st.
+    const dayEdges = Array.from(
+      { length: numDays + 1 },
+      (_, i) =>
+        localMidnightUtcMs(
+          new Date(Date.UTC(year, month - 1, i + 1)).toISOString().slice(0, 10),
+          tz,
+        ),
+    );
+    return await this.withForecast(response, dayEdges);
   }
 
   async buildYearStats(
@@ -135,7 +163,7 @@ export class StatsService {
     // Multiply by 52/12 ≈ 4.33 to convert weekly energy to equivalent monthly rate (matching bar scale)
     const solarProductionLine = this.buildYearlySolarLine(solarRows);
 
-    return this.buildResponse(
+    const response = this.buildResponse(
       "year",
       startDate,
       endDate,
@@ -149,6 +177,66 @@ export class StatsService {
         ...currency,
       },
     );
+    // One bucket per month: local midnight on each 1st.
+    const monthEdges = Array.from(
+      { length: 13 },
+      (_, i) =>
+        localMidnightUtcMs(
+          new Date(Date.UTC(year, i, 1)).toISOString().slice(0, 10),
+          tz,
+        ),
+    );
+    return await this.withForecast(response, monthEdges);
+  }
+
+  /** Add the solar forecast to a finished response when one covers its
+   *  range. `edgesMs` are the bucket boundaries, one more than buckets. */
+  private async withForecast(
+    response: StatsResponse,
+    edgesMs: number[],
+  ): Promise<StatsResponse> {
+    const periods = await this.db.forecasts.getPeriods(
+      new Date(edgesMs[0]).toISOString(),
+      new Date(edgesMs[edgesMs.length - 1]).toISOString(),
+    );
+    if (periods.length === 0) return response;
+    const nowMs = this.now();
+    const perBucket = bucketForecastWh(
+      periods,
+      edgesMs,
+      (p) => effectiveForecastW(p, nowMs),
+    );
+    // Compare only finished buckets that the forecast fully covers — the
+    // forecast may have started mid-range, and the current bucket is open.
+    const coveredFromMs = Date.parse(periods[0].periodStart);
+    const lastEndMs = periodEndMs(periods[periods.length - 1]);
+    const coveredToMs = Math.min(nowMs, lastEndMs);
+    const covered = perBucket.map((_, i) =>
+      edgesMs[i] >= coveredFromMs && edgesMs[i + 1] <= coveredToMs
+    );
+    const sumCovered = (values: number[]) =>
+      values.reduce((sum, value, i) => covered[i] ? sum + value : sum, 0);
+    const forecastComparison = {
+      forecastWh: Math.round(sumCovered(perBucket)),
+      actualWh: Math.round(
+        sumCovered(response.energyBuckets.map((b) => b.solarProductionWh)),
+      ),
+    };
+    const comparison = covered.some(Boolean) ? { forecastComparison } : {};
+    // Buckets outside the forecast get none at all, not zero — the chart
+    // leaves a gap rather than claiming nothing was expected.
+    const inForecast = (i: number) =>
+      edgesMs[i + 1] > coveredFromMs && edgesMs[i] < lastEndMs;
+    return {
+      ...response,
+      energyBuckets: response.energyBuckets.map((bucket, i) =>
+        inForecast(i)
+          ? { ...bucket, forecastWh: Math.round(perBucket[i]) }
+          : bucket
+      ),
+      forecastSolarWh: Math.round(perBucket.reduce((sum, wh) => sum + wh, 0)),
+      ...comparison,
+    };
   }
 
   /** Build day stats with 15-minute resolution. */

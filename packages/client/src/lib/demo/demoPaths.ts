@@ -85,6 +85,10 @@ export const GATED_MUTATIONS = [
   // Pairing drives a real websocket handshake from real hardware.
   "plugin.charger.ocpp.beginPairing",
   "plugin.charger.ocpp.cancelPairing",
+  // Solar forecast — needs a real provider account and API key.
+  "forecast.saveSettings",
+  "forecast.testKey",
+  "forecast.refresh",
 ] as const satisfies readonly MutationPath[];
 
 export type GatedMutationPath = typeof GATED_MUTATIONS[number];

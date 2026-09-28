@@ -10,6 +10,7 @@ import type { Logger } from "../lib/Logger.ts";
 import type { VehicleService } from "../services/VehicleService.ts";
 import type { TariffService } from "../services/TariffService.ts";
 import type { StatsService } from "../services/StatsService.ts";
+import type { SolarForecastService } from "../services/SolarForecastService.ts";
 import type { ConfigService } from "../services/ConfigService.ts";
 import type { ScheduleService } from "../services/ScheduleService.ts";
 import type { WizardService } from "../services/WizardService.ts";
@@ -34,6 +35,7 @@ export interface TrpcContext {
   energyPlugins: EnergyPluginRegistry;
   tariffService: TariffService;
   statsService: StatsService;
+  forecastService: SolarForecastService;
   configService: ConfigService;
   scheduleService: ScheduleService;
   wizardService: WizardService;

@@ -57,6 +57,13 @@
       "when": 1786054986619,
       "tag": "0007_material_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790551519350,
+      "tag": "0008_yielding_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

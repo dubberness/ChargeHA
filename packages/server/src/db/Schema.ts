@@ -222,3 +222,20 @@ export const tariffPeriods = sqliteTable("tariff_periods", {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
+
+// ---- Solar Forecasts ----
+
+// One row per forecast period, summed across every forecast site. Power
+// columns are the average watts over the period. `day_ahead_w` keeps the
+// forecast as it stood before the period's local day began, so past days
+// can be compared against what was expected, not a same-hour nowcast.
+export const solarForecasts = sqliteTable("solar_forecasts", {
+  // UTC, stored in the same "YYYY-MM-DD HH:MM:SS" format as energy_readings.
+  periodStart: text("period_start").primaryKey(),
+  periodMinutes: integer("period_minutes").notNull(),
+  pvEstimateW: real("pv_estimate_w").notNull(),
+  pvEstimate10W: real("pv_estimate10_w").notNull(),
+  pvEstimate90W: real("pv_estimate90_w").notNull(),
+  dayAheadW: real("day_ahead_w"),
+  fetchedAt: text("fetched_at").notNull(),
+});

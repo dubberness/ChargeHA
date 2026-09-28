@@ -14,10 +14,12 @@ describe("StatsService", () => {
       // deno-lint-ignore no-explicit-any
       vehicles?: Record<string, (...args: any[]) => any>;
       // deno-lint-ignore no-explicit-any
+      forecasts?: Record<string, (...args: any[]) => any>;
+      // deno-lint-ignore no-explicit-any
       [key: string]: unknown | ((...args: any[]) => any);
     } = {},
   ): AppDatabase => {
-    const { stats, vehicles, ...rest } = overrides;
+    const { stats, vehicles, forecasts, ...rest } = overrides;
     const partial = {
       stats: {
         getEnergyStatsDayDetailed: () => Promise.resolve([]),
@@ -36,6 +38,10 @@ describe("StatsService", () => {
       vehicles: {
         getVehicleSocForDay: () => Promise.resolve([]),
         ...vehicles,
+      },
+      forecasts: {
+        getPeriods: () => Promise.resolve([]),
+        ...forecasts,
       },
       getConfig: () => Promise.resolve(null),
       getTariffPeriods: () => Promise.resolve([]),

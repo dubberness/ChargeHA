@@ -7,6 +7,7 @@ import { formatRelativeTime } from "../../../utils/Format.ts";
 import { trpc } from "../../../trpc.ts";
 import { EnergyOverview } from "./EnergyOverview.tsx";
 import { VehicleList } from "./VehicleList.tsx";
+import { SolarForecastCard } from "./SolarForecastCard.tsx";
 import styles from "./Dashboard.module.css";
 
 interface SystemAlert {
@@ -102,6 +103,8 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
       )}
 
       <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
+
+      <SolarForecastCard />
 
       <VehicleList
         onNavigateSettings={onNavigateSettings}
