@@ -43,6 +43,8 @@ interface ChartDatum {
   gridToCar: number;
   solarProduction: number;
   totalConsumption: number;
+  // Null when no solar forecast covers the range.
+  solarForecast: number | null;
   costCents: number | null;
   gridToHomeCostCents: number;
   gridToCarCostCents: number;
@@ -65,6 +67,7 @@ const TOOLTIP_NAMES: Record<string, string> = {
   gridToCar: "Grid \u2192 Vehicle",
   solarProduction: "Solar Production",
   totalConsumption: "Total Consumption",
+  solarForecast: "Solar Forecast",
 };
 
 // Flow keys in stacking order (bottom to top), excluding the line
@@ -123,6 +126,39 @@ interface CustomTooltipProps {
   dateCursor: Date;
   currencySymbol: string;
   hasCostData: boolean;
+}
+
+// Line series listed under the stacked flows, in legend order.
+const LINE_ROWS = [
+  { key: "solarProduction", color: "var(--color-solar-production)" },
+  { key: "solarForecast", color: "var(--color-solar-forecast)" },
+  { key: "totalConsumption", color: "var(--color-consumption)" },
+] as const;
+
+function LineTooltipRows(
+  { datum, showCost }: { datum: ChartDatum; showCost: boolean },
+) {
+  return (
+    <>
+      {LINE_ROWS.map(({ key, color }) => {
+        const value = datum[key];
+        if (!value || value <= 0) return null;
+        return (
+          <div key={key} className={styles.tooltipRow}>
+            <span
+              className={styles.tooltipLine}
+              style={{ backgroundColor: color }}
+            />
+            <span className={styles.tooltipLabel}>{TOOLTIP_NAMES[key]}</span>
+            <span className={styles.tooltipValue}>
+              {value.toFixed(2)} kWh
+            </span>
+            {showCost && <span className={styles.tooltipCost} />}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 function CustomTooltip({
@@ -184,36 +220,7 @@ function CustomTooltip({
           </div>
         );
       })}
-      {datum.solarProduction > 0 && (
-        <div className={styles.tooltipRow}>
-          <span
-            className={styles.tooltipLine}
-            style={{ backgroundColor: "var(--color-solar-production)" }}
-          />
-          <span className={styles.tooltipLabel}>
-            {TOOLTIP_NAMES.solarProduction}
-          </span>
-          <span className={styles.tooltipValue}>
-            {datum.solarProduction.toFixed(2)} kWh
-          </span>
-          {showCost && <span className={styles.tooltipCost} />}
-        </div>
-      )}
-      {datum.totalConsumption > 0 && (
-        <div className={styles.tooltipRow}>
-          <span
-            className={styles.tooltipLine}
-            style={{ backgroundColor: "var(--color-consumption)" }}
-          />
-          <span className={styles.tooltipLabel}>
-            {TOOLTIP_NAMES.totalConsumption}
-          </span>
-          <span className={styles.tooltipValue}>
-            {datum.totalConsumption.toFixed(2)} kWh
-          </span>
-          {showCost && <span className={styles.tooltipCost} />}
-        </div>
-      )}
+      <LineTooltipRows datum={datum} showCost={showCost} />
       {datum.vehicleSoc.length > 0 && (
         <>
           <div className={styles.tooltipDivider} />
@@ -304,6 +311,9 @@ function buildBucketDatum(
   const totalConsumption = Math.round(
     (solarToHome + solarToCar + gridToHome + gridToCar) * 100,
   ) / 100;
+  const solarForecast = eb.forecastWh === undefined
+    ? null
+    : Math.round((eb.forecastWh / 1000) * 100) / 100;
   return {
     label: period === "day" && resolution !== "15m"
       ? `${eb.label}:00`
@@ -315,6 +325,7 @@ function buildBucketDatum(
     gridToCar,
     solarProduction,
     totalConsumption,
+    solarForecast,
     costCents: cb?.costCents ?? null,
     gridToHomeCostCents,
     gridToCarCostCents,
@@ -322,7 +333,7 @@ function buildBucketDatum(
   };
 }
 
-function ChartLegend() {
+function ChartLegend({ hasForecast }: { hasForecast: boolean }) {
   return (
     <div className={styles.legend}>
       <span className={styles.legendItem}>
@@ -374,6 +385,15 @@ function ChartLegend() {
         />
         Total Consumption
       </span>
+      {hasForecast && (
+        <span className={styles.legendItem}>
+          <span
+            className={styles.legendLineDashed}
+            style={{ borderTopColor: "var(--color-solar-forecast)" }}
+          />
+          Solar Forecast
+        </span>
+      )}
     </div>
   );
 }
@@ -381,7 +401,7 @@ function ChartLegend() {
 // Called as a function (not JSX) so the fragment lands directly in
 // ComposedChart's children — recharts walks `Children.map` to find Bar/Line
 // by displayName, and a wrapper component would hide them, rendering blank.
-function chartBars() {
+function chartBars(hasForecast: boolean) {
   return (
     <>
       <Bar
@@ -432,6 +452,17 @@ function chartBars() {
         strokeDasharray="6 3"
         dot={false}
       />
+      {hasForecast && (
+        <Line
+          dataKey="solarForecast"
+          name="solarForecast"
+          type="monotone"
+          stroke="var(--color-solar-forecast)"
+          strokeWidth={2}
+          strokeDasharray="3 3"
+          dot={false}
+        />
+      )}
     </>
   );
 }
@@ -452,6 +483,7 @@ export function StatsChart({
   const hasBucketCost =
     data?.energyBuckets?.some((b) => (b.costCents ?? 0) > 0) ?? false;
   const hasCostData = hasTotalCost || hasSavings || hasBucketCost;
+  const hasForecast = data?.forecastSolarWh !== undefined;
 
   const chartData: ChartDatum[] = useMemo(() => {
     if (!data) return [];
@@ -533,12 +565,12 @@ export function StatsChart({
                   />
                 }
               />
-              {chartBars()}
+              {chartBars(hasForecast)}
             </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
-      <ChartLegend />
+      <ChartLegend hasForecast={hasForecast} />
     </Card>
   );
 }

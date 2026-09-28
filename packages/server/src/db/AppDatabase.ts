@@ -26,6 +26,7 @@ import { runMigrations } from "./MigrationRunner.ts";
 import { ChargerRepository } from "./repositories/ChargerRepository.ts";
 import { ConfigRepository } from "./repositories/ConfigRepository.ts";
 import { EnergyRepository } from "./repositories/EnergyRepository.ts";
+import { ForecastRepository } from "./repositories/ForecastRepository.ts";
 import { LogRepository } from "./repositories/LogRepository.ts";
 import { ScheduleRepository } from "./repositories/ScheduleRepository.ts";
 import { SessionRepository } from "./repositories/SessionRepository.ts";
@@ -92,6 +93,7 @@ export class AppDatabase {
   chargers: ChargerRepository;
   config: ConfigRepository;
   energy: EnergyRepository;
+  forecasts: ForecastRepository;
   logs: LogRepository;
   schedules: ScheduleRepository;
   sessions: SessionRepository;
@@ -125,6 +127,7 @@ export class AppDatabase {
     this.chargers = new ChargerRepository(this.db);
     this.config = new ConfigRepository(this.db);
     this.energy = new EnergyRepository(this.db);
+    this.forecasts = new ForecastRepository(this.db);
     this.logs = new LogRepository(this.db);
     this.schedules = new ScheduleRepository(this.db);
     this.sessions = new SessionRepository(this.db);

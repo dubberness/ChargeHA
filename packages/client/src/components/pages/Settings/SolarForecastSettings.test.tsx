@@ -1,0 +1,259 @@
+import "@testing-library/jest-dom/vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import type { SolarForecastStatus } from "@chargeha/shared/solarForecast";
+import type { SectionProps, SettingsRowProps } from "./SettingsLayout.tsx";
+import { renderWithProviders } from "../../../test-utils.tsx";
+import {
+  formatSite,
+  SolarForecastSettings,
+  statusLine,
+} from "./SolarForecastSettings.tsx";
+import { trpc } from "../../../trpc.ts";
+
+const h = vi.hoisted(() => ({
+  saveMutate: vi.fn(),
+  testMutate: vi.fn(),
+  refreshMutate: vi.fn(),
+  testData: undefined as unknown,
+}));
+
+vi.mock("../../../trpc.ts", () => ({
+  widenTrpc: vi.fn(),
+  trpc: {
+    forecast: {
+      status: { useQuery: vi.fn() },
+      saveSettings: {
+        useMutation: vi.fn(() => ({ mutate: h.saveMutate, isPending: false })),
+      },
+      testKey: {
+        useMutation: vi.fn(() => ({
+          mutate: h.testMutate,
+          reset: vi.fn(),
+          isPending: false,
+          data: h.testData,
+        })),
+      },
+      refresh: {
+        useMutation: vi.fn(() => ({
+          mutate: h.refreshMutate,
+          isPending: false,
+          data: undefined,
+        })),
+      },
+    },
+    useUtils: vi.fn(() => ({
+      forecast: { invalidate: vi.fn(), status: { fetch: vi.fn() } },
+      stats: { invalidate: vi.fn() },
+    })),
+  },
+}));
+
+vi.mock("./SettingsLayout.tsx", () => ({
+  SettingsSection: (
+    { children, title, isDirty, onSave }: SectionProps,
+  ) => (
+    <div>
+      <h3>{title}</h3>
+      {isDirty && onSave && (
+        <button type="button" onClick={onSave}>Save</button>
+      )}
+      {children}
+    </div>
+  ),
+  SettingsRow: ({ children, label, help }: SettingsRowProps) => (
+    <div>
+      <label>{label}</label>
+      {help && <span>{help}</span>}
+      {children}
+    </div>
+  ),
+  NumberInput: (
+    { value, onChange }: { value: string; onChange: (v: string) => void },
+  ) => (
+    <input
+      aria-label="Daily request limit"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+}));
+
+describe("SolarForecastSettings", () => {
+  const status = (
+    overrides: Partial<SolarForecastStatus> = {},
+  ): SolarForecastStatus => ({
+    provider: "solcast",
+    apiKeySet: true,
+    siteIds: [],
+    dailyLimit: 10,
+    usedToday: 3,
+    lastFetchAt: null,
+    lastError: null,
+    nextFetchAt: null,
+    ...overrides,
+  });
+
+  const withStatus = (value: SolarForecastStatus) =>
+    vi.mocked(trpc.forecast.status.useQuery).mockReturnValue(
+      { data: value } as never,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.testData = undefined;
+    globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
+      observe: vi.fn(),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }));
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows only the provider picker while disabled", () => {
+    withStatus(status({ provider: null, apiKeySet: false }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByText("Solar Forecast")).toBeInTheDocument();
+    expect(screen.queryByText("API key")).not.toBeInTheDocument();
+  });
+
+  it("asks for a key when none is saved", () => {
+    withStatus(status({ apiKeySet: false }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByLabelText("Solcast API key")).toBeInTheDocument();
+    expect(screen.queryByText("Update now")).not.toBeInTheDocument();
+  });
+
+  it("tests a typed key", () => {
+    withStatus(status({ apiKeySet: false }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.change(screen.getByLabelText("Solcast API key"), {
+      target: { value: " abc " },
+    });
+    fireEvent.click(screen.getByText("Test Key"));
+
+    expect(h.testMutate).toHaveBeenCalledWith({
+      apiKey: "abc",
+      provider: "solcast",
+    });
+  });
+
+  it("lists the sites a passing test found", () => {
+    h.testData = {
+      success: true,
+      sites: [{ id: "a", name: "Home", capacityKw: 6 }],
+    };
+    withStatus(status({ apiKeySet: false }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByText(/Found Home \(6 kW\)/)).toBeInTheDocument();
+  });
+
+  it("shows why a test failed", () => {
+    h.testData = { success: false, error: "Solcast rejected the API key" };
+    withStatus(status({ apiKeySet: false }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Solcast rejected the API key",
+    );
+  });
+
+  it("hides a saved key behind Replace", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.queryByLabelText("Solcast API key")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Replace"));
+    expect(screen.getByLabelText("Solcast API key")).toBeInTheDocument();
+  });
+
+  it("saves changed settings", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.change(screen.getByLabelText("Site IDs"), {
+      target: { value: "abcd-1234 " },
+    });
+    fireEvent.change(screen.getByLabelText("Daily request limit"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(h.saveMutate).toHaveBeenCalledWith({
+      forecastProvider: "solcast",
+      forecastSiteIds: "abcd-1234",
+      forecastDailyLimit: 50,
+    });
+  });
+
+  it("will not save a limit that is not a whole number", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.change(screen.getByLabelText("Daily request limit"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(h.saveMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("updates on demand while requests remain", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.click(screen.getByText("Update now"));
+
+    expect(h.refreshMutate).toHaveBeenCalled();
+  });
+
+  it("blocks updating once the day's requests are used", () => {
+    withStatus(status({ usedToday: 10 }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByText("Update now").closest("button")).toBeDisabled();
+  });
+
+  it("shows the last update's error", () => {
+    withStatus(status({ lastError: "Solcast is busy" }));
+    renderWithProviders(<SolarForecastSettings />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Solcast is busy");
+  });
+
+  describe("statusLine", () => {
+    it("says when it has not updated yet", () => {
+      expect(statusLine(status())).toBe(
+        "Not updated yet · 3 of 10 requests used today",
+      );
+    });
+
+    it("includes the next update when it is in the future", () => {
+      const line = statusLine(
+        status({
+          lastFetchAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          nextFetchAt: "2099-01-01T03:30:00Z",
+        }),
+      );
+      expect(line).toMatch(/^Updated 5m ago · next at .+ · 3 of 10/);
+    });
+  });
+
+  describe("formatSite", () => {
+    it("adds the capacity when known", () => {
+      expect(formatSite({ id: "a", name: "Home", capacityKw: 6 }))
+        .toBe("Home (6 kW)");
+      expect(formatSite({ id: "a", name: "Home", capacityKw: null }))
+        .toBe("Home");
+    });
+  });
+});

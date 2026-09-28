@@ -20,7 +20,8 @@
     "./solarAttribution": "./solarAttribution.ts",
     "./geocode": "./geocode.ts",
     "./notifications": "./notificationProviders.ts",
-    "./redact": "./redact.ts"
+    "./redact": "./redact.ts",
+    "./solarForecast": "./solarForecast.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4",

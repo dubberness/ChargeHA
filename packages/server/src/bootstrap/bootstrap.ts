@@ -21,6 +21,8 @@ import { EnergyPoller } from "../services/EnergyPoller.ts";
 import { VehicleService } from "../services/VehicleService.ts";
 import { TariffService } from "../services/TariffService.ts";
 import { StatsService } from "../services/StatsService.ts";
+import { SolarForecastService } from "../services/SolarForecastService.ts";
+import { SolcastProvider } from "../services/forecast-providers/SolcastProvider.ts";
 import { ConfigService } from "../services/ConfigService.ts";
 import { GeocodeService } from "../services/GeocodeService.ts";
 import { OidcService } from "../services/OidcService.ts";
@@ -103,6 +105,11 @@ function buildAuxServices(
     new Logger("TariffService", logLevel),
   );
   const statsService = new StatsService(db);
+  const forecastService = new SolarForecastService(
+    db,
+    [new SolcastProvider()],
+    new Logger("SolarForecast", logLevel),
+  );
   const geocodeService = new GeocodeService(new Logger("Geocode", logLevel));
   const oidcService = new OidcService(
     db,
@@ -142,6 +149,7 @@ function buildAuxServices(
   return {
     tariffService,
     statsService,
+    forecastService,
     geocodeService,
     oidcService,
     rateLimiter,
@@ -320,6 +328,7 @@ function buildServices(
   const {
     tariffService,
     statsService,
+    forecastService,
     geocodeService,
     oidcService,
     rateLimiter,
@@ -353,6 +362,8 @@ function buildServices(
     encryptionKey,
   );
 
+  forecastService.start();
+
   startBackgroundServices({
     db,
     vehicleManager,
@@ -372,6 +383,7 @@ function buildServices(
     vehicleService,
     tariffService,
     statsService,
+    forecastService,
     configService,
     geocodeService,
     oidcService,
@@ -463,6 +475,7 @@ function buildHttpApp(
     energyRegistry,
     tariffService: services.tariffService,
     statsService: services.statsService,
+    forecastService: services.forecastService,
     configService: services.configService,
     geocodeService: services.geocodeService,
     healthService: services.healthService,
@@ -501,6 +514,7 @@ function setupTrpcEndpoint(
     energyRegistry: EnergyPluginRegistry;
     tariffService: TariffService;
     statsService: StatsService;
+    forecastService: SolarForecastService;
     configService: ConfigService;
     geocodeService: GeocodeService;
     healthService: HealthService;
@@ -533,6 +547,7 @@ function setupTrpcEndpoint(
         energyPlugins: ctx.energyRegistry,
         tariffService: ctx.tariffService,
         statsService: ctx.statsService,
+        forecastService: ctx.forecastService,
         configService: ctx.configService,
         geocodeService: ctx.geocodeService,
         healthService: ctx.healthService,
@@ -676,6 +691,7 @@ export async function bootstrap(
       };
       // Stop the HTTP server first so in-flight requests don't hit a closed DB.
       await step("http server", () => server.shutdown());
+      await step("solar forecast", () => services.forecastService.stop());
       // Tesla plugin's shutdown() reaps the tesla-http-proxy subprocess
       await step("vehicle plugins", () => vehicleRegistry.shutdownAll());
       await step("energy plugins", () => energyRegistry.shutdownAll());

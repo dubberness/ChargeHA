@@ -213,6 +213,58 @@ export const notificationConfigDef = defineSection({
 });
 export type NotificationConfig = SectionType<typeof notificationConfigDef>;
 
+// Solar forecast settings. The provider's API key is a secret and is kept
+// out of this section (see SolarForecastService).
+export const forecastConfigDef = defineSection({
+  forecastProvider: {
+    key: "forecast_provider",
+    // "" = no forecast provider.
+    schema: z.enum(["", "solcast"]),
+    default: "" as const,
+  },
+  // Comma-separated provider site ids. Empty = every site on the account.
+  forecastSiteIds: {
+    key: "forecast_site_ids",
+    schema: z.string(),
+    default: "",
+  },
+  // Requests the provider allows per day. Solcast's free hobbyist plan
+  // allows 10 (accounts created before 2024 may have 50).
+  forecastDailyLimit: {
+    key: "forecast_daily_limit",
+    schema: z.number().int().min(1).max(10_000),
+    default: 10,
+  },
+});
+export type ForecastConfig = SectionType<typeof forecastConfigDef>;
+
+// Bookkeeping the forecast service keeps across restarts, so a restart
+// never spends quota the day has already used.
+export const forecastStateDef = defineSection({
+  forecastUsage: {
+    key: "forecast_usage",
+    // JSON {"date":"YYYY-MM-DD","count":n}, the UTC day the count is for.
+    schema: z.string(),
+    default: "",
+  },
+  forecastLastFetchAt: {
+    key: "forecast_last_fetch_at",
+    schema: z.string(),
+    default: "",
+  },
+  forecastLastAttemptAt: {
+    key: "forecast_last_attempt_at",
+    schema: z.string(),
+    default: "",
+  },
+  forecastLastError: {
+    key: "forecast_last_error",
+    schema: z.string(),
+    default: "",
+  },
+});
+export type ForecastState = SectionType<typeof forecastStateDef>;
+
 export const internalConfigDef = defineSection({
   wizardCompleted: {
     key: "wizard_completed",
@@ -296,6 +348,8 @@ export type CoreConfigKey =
   | SectionKeys<typeof equipmentConfigDef>
   | SectionKeys<typeof systemConfigDef>
   | SectionKeys<typeof notificationConfigDef>
+  | SectionKeys<typeof forecastConfigDef>
+  | SectionKeys<typeof forecastStateDef>
   | SectionKeys<typeof internalConfigDef>;
 
 // Runtime list of every core DB key — used by validators that need a
@@ -308,6 +362,8 @@ export const CORE_CONFIG_KEYS: readonly CoreConfigKey[] = [
   ...sectionDbKeys(equipmentConfigDef),
   ...sectionDbKeys(systemConfigDef),
   ...sectionDbKeys(notificationConfigDef),
+  ...sectionDbKeys(forecastConfigDef),
+  ...sectionDbKeys(forecastStateDef),
   ...sectionDbKeys(internalConfigDef),
 ];
 
@@ -470,3 +526,5 @@ export const notificationConfigInput: z.ZodType<Partial<NotificationConfig>> =
   buildSectionInputSchema(
     notificationConfigDef,
   );
+export const forecastConfigInput: z.ZodType<Partial<ForecastConfig>> =
+  buildSectionInputSchema(forecastConfigDef);

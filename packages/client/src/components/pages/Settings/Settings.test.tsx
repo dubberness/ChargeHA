@@ -58,6 +58,10 @@ vi.mock("./SolarTrackingSettings.tsx", () => ({
   SolarTrackingSettings: () => <div data-testid="solar-tracking-settings" />,
 }));
 
+vi.mock("./SolarForecastSettings.tsx", () => ({
+  SolarForecastSettings: () => <div data-testid="solar-forecast-settings" />,
+}));
+
 const {
   mockLocationFetch,
   mockSetBulkMutate,

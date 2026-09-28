@@ -145,6 +145,44 @@ function buildSavingsTooltip(
   );
 }
 
+// "+8%" — measured production against the forecast for the same hours.
+export function forecastDeltaLabel(
+  comparison: { forecastWh: number; actualWh: number },
+): string {
+  if (comparison.forecastWh <= 0) return "—";
+  const pct = Math.round(
+    (comparison.actualWh / comparison.forecastWh - 1) * 100,
+  );
+  return `${pct > 0 ? "+" : ""}${pct}%`;
+}
+
+function ForecastSummary({ data }: { data: StatsResponse }) {
+  const comparison = data.forecastComparison;
+  return (
+    <div className={styles.costSummary}>
+      <SummaryCard
+        label="Solar Forecast"
+        value={kwhValue(data.forecastSolarWh ?? 0)}
+      />
+      {comparison && (
+        <Tooltip
+          content={`Produced ${kwhValue(comparison.actualWh)} against ${
+            kwhValue(comparison.forecastWh)
+          } forecast for the hours that have passed. Past days are compared with the forecast made the day before.`}
+          delayDuration={200}
+        >
+          <Card className={styles.summaryCard} style={{ cursor: "default" }}>
+            <Text size="2" color="gray">Actual vs Forecast</Text>
+            <span className={styles.summaryValue}>
+              {forecastDeltaLabel(comparison)}
+            </span>
+          </Card>
+        </Tooltip>
+      )}
+    </div>
+  );
+}
+
 function SummaryCard(
   { label, value }: { label: string; value: React.ReactNode },
 ) {
@@ -228,6 +266,10 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
           value={loading ? "—" : `${data?.homeSelfPoweredPercent ?? 0}%`}
         />
       </div>
+
+      {!loading && data?.forecastSolarWh !== undefined && (
+        <ForecastSummary data={data} />
+      )}
 
       {/* Cost summary cards — only when tariff data exists */}
       {hasCostData && (

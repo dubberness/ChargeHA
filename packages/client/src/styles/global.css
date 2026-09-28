@@ -29,6 +29,7 @@
   /* Chart overlay colors */
   --color-solar-production: #334155; /* slate-700 — solar production line */
   --color-consumption: #8b5cf6; /* violet-500 — total consumption line */
+  --color-solar-forecast: #f97316; /* orange-500 — solar forecast */
 
   /* Status colors */
   --color-connected: #22c55e;

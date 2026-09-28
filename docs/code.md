@@ -87,6 +87,8 @@ packages/server/src/
     rateLimit.ts             — Rate limiting middleware
   services/                  — One class per domain concern (ChargeController,
                                VehicleManager, ConfigService, etc.)
+  services/forecast-providers/ — Solar forecast sources (Solcast), behind
+                               SolarForecastService
   lib/                       — Utilities (Logger, PluginDbLogger, Encryption, Geo,
                                Tariffs)
   test-helpers/              — Test factories and helpers for server tests

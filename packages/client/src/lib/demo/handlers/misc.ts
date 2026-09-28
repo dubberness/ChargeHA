@@ -7,4 +7,17 @@ export const miscHandlers: Record<string, QueryHandler> = {
   "health.pluginWarnings": () => [],
 
   "notification.providers": () => PROVIDER_CONFIG_FIELDS,
+
+  // No forecast provider in demo — the dashboard card and stats line hide.
+  "forecast.status": () => ({
+    provider: null,
+    apiKeySet: false,
+    siteIds: [],
+    dailyLimit: 10,
+    usedToday: 0,
+    lastFetchAt: null,
+    lastError: null,
+    nextFetchAt: null,
+  }),
+  "forecast.summary": () => null,
 };

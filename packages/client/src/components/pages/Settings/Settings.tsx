@@ -17,6 +17,7 @@ import { BatterySettings } from "./BatterySettings.tsx";
 import { TariffSettings } from "./TariffSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
 import { NotificationSettings } from "./NotificationSettings.tsx";
+import { SolarForecastSettings } from "./SolarForecastSettings.tsx";
 import { ExportSettingsButton } from "./ExportSettingsButton.tsx";
 
 function EncryptionWarning() {
@@ -122,6 +123,9 @@ export function Settings() {
 
       {/* ═══ Solar Tracking ═══ */}
       <SolarTrackingSettings />
+
+      {/* ═══ Solar Forecast ═══ */}
+      <SolarForecastSettings />
 
       {/* ═══ Electricity Tariffs ═══ */}
       <TariffSettings />

@@ -118,6 +118,11 @@ vi.mock("../../../trpc.ts", () => ({
         useQuery: () => dashboardMocks.pluginWarningsUseQuery(),
       },
     },
+    forecast: {
+      summary: {
+        useQuery: vi.fn(() => ({ data: null, isLoading: false })),
+      },
+    },
     tesla: {
       getConfig: {
         useQuery: vi.fn(() => ({ data: {}, isLoading: false, error: null })),
