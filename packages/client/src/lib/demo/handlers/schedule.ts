@@ -30,6 +30,7 @@ export const toSchedule = (r: DemoSchedule) => {
       scheduleType: "charge" as const,
       chargeAmps: r.chargeAmps ?? 0,
       chargeLimitPct: r.chargeLimitPct,
+      solarAware: r.solarAware ?? false,
     };
   }
   return {

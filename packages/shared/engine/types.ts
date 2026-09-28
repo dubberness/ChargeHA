@@ -64,6 +64,7 @@ export interface EngineSchedule {
   days: DayOfWeek[];
   chargeAmps: number | null;
   chargeLimitPct: number | null;
+  solarAware?: boolean;
   enabled: boolean;
 }
 

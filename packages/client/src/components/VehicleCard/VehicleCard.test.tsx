@@ -4,7 +4,8 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { renderWithProviders } from "../../test-utils.tsx";
 import type { VehicleChargeState } from "@chargeha/shared";
-import { VehicleCard } from "./VehicleCard.tsx";
+import type { SolarChargeProjection } from "@chargeha/shared/solarForecast";
+import { solarProjectionText, VehicleCard } from "./VehicleCard.tsx";
 
 vi.mock("../StaticMap/StaticMap.tsx", () => ({
   StaticMap: () => <div data-testid="static-map" />,
@@ -430,5 +431,80 @@ describe("VehicleCard", () => {
     expect(screen.queryByText("4.2 kWh added")).not.toBeInTheDocument();
     expect(screen.queryByText("Priority: receiving all solar")).not
       .toBeInTheDocument();
+  });
+
+  describe("solar projection", () => {
+    const projection = (
+      overrides: Partial<SolarChargeProjection> = {},
+    ): SolarChargeProjection => ({
+      vehicleId: "v1",
+      expectedKwh: 6,
+      cautiousKwh: 3,
+      expectedPct: 85,
+      cautiousPct: 78,
+      limitPct: 90,
+      untilAt: "2026-09-29T08:12:00.000Z",
+      limitAt: null,
+      ...overrides,
+    });
+    const clock = (iso: string) =>
+      new Date(iso).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+
+    it("says where solar should take the battery by sunset", () => {
+      expect(solarProjectionText(projection())).toBe(
+        `Solar should bring it to ~85% by ${
+          clock("2026-09-29T08:12:00.000Z")
+        } (at least 78%)`,
+      );
+    });
+
+    it("says when solar should fill it to the limit", () => {
+      expect(
+        solarProjectionText(projection({
+          expectedPct: 90,
+          cautiousPct: 90,
+          limitAt: "2026-09-29T03:00:00.000Z",
+        })),
+      ).toBe(
+        `Solar should fill it to 90% by about ${
+          clock("2026-09-29T03:00:00.000Z")
+        }`,
+      );
+    });
+
+    it("gives energy until the battery size is learned", () => {
+      expect(
+        solarProjectionText(
+          projection({ expectedPct: null, cautiousPct: null }),
+        ),
+      ).toBe(
+        `Solar should add ~6 kWh by ${clock("2026-09-29T08:12:00.000Z")}`,
+      );
+    });
+
+    it("says when there is too little sun left", () => {
+      expect(solarProjectionText(projection({ expectedKwh: 0 }))).toBe(
+        "Not enough sun left today to charge",
+      );
+    });
+
+    it("shows the projection on the card", () => {
+      renderVC({ solarProjection: projection() });
+
+      expect(screen.getByText(/Solar should bring it to ~85%/))
+        .toBeInTheDocument();
+      expect(screen.getByTestId("solar-projection-fill")).toHaveStyle({
+        width: "85%",
+      });
+    });
+
+    it("shows nothing without a projection", () => {
+      renderVC();
+
+      expect(screen.queryByText(/Solar should/)).not.toBeInTheDocument();
+    });
   });
 });

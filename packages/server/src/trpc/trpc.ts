@@ -25,6 +25,7 @@ import type { RateLimiter } from "../middleware/rateLimit.ts";
 import { AuthError } from "../services/AuthService.ts";
 import { GeocodeError } from "../services/GeocodeService.ts";
 import { ServiceError } from "../lib/ServiceError.ts";
+import type { SolarChargePlanner } from "../services/SolarChargePlanner.ts";
 
 export interface TrpcContext {
   db: AppDatabase;
@@ -36,6 +37,7 @@ export interface TrpcContext {
   tariffService: TariffService;
   statsService: StatsService;
   forecastService: SolarForecastService;
+  solarPlanner: SolarChargePlanner;
   configService: ConfigService;
   scheduleService: ScheduleService;
   wizardService: WizardService;

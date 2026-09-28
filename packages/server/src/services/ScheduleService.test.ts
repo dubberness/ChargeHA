@@ -123,6 +123,29 @@ describe("ScheduleService", () => {
       expect(result.schedule.chargeLimitPct).toBe(80);
     });
 
+    it("stores whether a charge schedule is solar-aware", async () => {
+      const { schedule } = await service.create({
+        scheduleType: "charge",
+        vehicleId: "v1",
+        chargerId: null,
+        startTime: "21:00",
+        endTime: "07:00",
+        days: ["mon"],
+        chargeAmps: 16,
+        chargeLimitPct: 60,
+        solarAware: true,
+      });
+      expect(schedule.scheduleType === "charge" && schedule.solarAware)
+        .toBe(true);
+
+      const { schedule: updated } = await service.update({
+        id: schedule.id,
+        solarAware: false,
+      });
+      expect(updated.scheduleType === "charge" && updated.solarAware)
+        .toBe(false);
+    });
+
     it("creates a blockout schedule (skips charge validation)", async () => {
       const result = await service.create({
         scheduleType: "blockout",

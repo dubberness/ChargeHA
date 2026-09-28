@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, CloudSun, KeyRound, RefreshCw } from "lucide-react";
+import { CheckCircle, CloudSun, KeyRound, RefreshCw, Send } from "lucide-react";
 import {
   Badge,
   Button,
@@ -37,6 +37,7 @@ interface Draft {
   siteIds: string;
   dailyLimit: string;
   adjust: boolean;
+  summaryTime: string;
   // Only set while the key is being replaced.
   apiKey: string | null;
 }
@@ -46,6 +47,7 @@ const draftFrom = (status: SolarForecastStatus): Draft => ({
   siteIds: status.siteIds.join(", "),
   dailyLimit: String(status.dailyLimit),
   adjust: status.adjust,
+  summaryTime: status.summaryTime,
   apiKey: null,
 });
 
@@ -55,6 +57,7 @@ const isDirty = (draft: Draft, status: SolarForecastStatus): boolean => {
     draft.siteIds.trim() !== saved.siteIds ||
     draft.dailyLimit !== saved.dailyLimit ||
     draft.adjust !== saved.adjust ||
+    draft.summaryTime !== saved.summaryTime ||
     (draft.apiKey !== null && draft.apiKey.trim() !== "");
 };
 
@@ -174,6 +177,36 @@ function LearningRows(
       </SettingsRow>
       <Text size="1" color="gray">{panelCheckLine(panelCheck)}</Text>
     </>
+  );
+}
+
+function SummaryRow(
+  { time, onTime }: { time: string; onTime: (time: string) => void },
+) {
+  const send = trpc.forecast.sendSummary.useMutation();
+  return (
+    <SettingsRow
+      label="Evening summary"
+      help="Today's solar, tomorrow's forecast and any top-up planned tonight. Turn on Daily Solar Summary in Notifications to receive it."
+    >
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <TextField.Root
+          type="time"
+          aria-label="Evening summary time"
+          value={time}
+          onChange={(e) => onTime(e.target.value)}
+        />
+        <Button
+          size="1"
+          variant="soft"
+          disabled={send.isPending}
+          onClick={() => send.mutate()}
+        >
+          <Send size={12} />
+          {send.isSuccess ? "Sent" : "Send now"}
+        </Button>
+      </div>
+    </SettingsRow>
   );
 }
 
@@ -357,6 +390,7 @@ export function SolarForecastSettings() {
       forecastSiteIds: draft.siteIds.trim(),
       forecastDailyLimit: limit,
       forecastAdjust: draft.adjust,
+      forecastSummaryTime: draft.summaryTime,
       ...(draft.apiKey?.trim() ? { apiKey: draft.apiKey.trim() } : {}),
     });
   };
@@ -433,6 +467,10 @@ export function SolarForecastSettings() {
                 status={status}
                 adjust={draft.adjust}
                 onAdjust={(adjust) => update({ adjust })}
+              />
+              <SummaryRow
+                time={draft.summaryTime}
+                onTime={(summaryTime) => update({ summaryTime })}
               />
             </>
           )}

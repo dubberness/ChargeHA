@@ -39,6 +39,7 @@ import type { EnergyPoller } from "./EnergyPoller.ts";
 import type { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import type { ConfigService } from "./ConfigService.ts";
 import type { Logger } from "../lib/Logger.ts";
+import type { SolarChargePlanner } from "./SolarChargePlanner.ts";
 
 // Default loop interval (overridden by config)
 const DEFAULT_LOOP_MS = 30_000;
@@ -78,6 +79,9 @@ interface ControlTarget {
   stop(ctx: CallContext, state: VehicleChargeState): Promise<unknown>;
 }
 
+type SchedulePlanner = Pick<SolarChargePlanner, "planSchedule">;
+type ScheduleRows = Awaited<ReturnType<AppDatabase["getSchedules"]>>;
+
 // A target paired with the engine input built from it this loop.
 interface LoopTarget {
   target: ControlTarget;
@@ -93,6 +97,8 @@ export class ChargeController {
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
   private readonly engine = new ControllerEngine();
+  // Lowers solar-aware schedules' limits for the solar still to come.
+  private readonly planner: SchedulePlanner | null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private loopCount = 0;
 
@@ -104,7 +110,9 @@ export class ChargeController {
     configService: ConfigService,
     eventEmitter: TypedEventEmitter,
     logger: Logger,
+    planner: SchedulePlanner | null = null,
   ) {
+    this.planner = planner;
     this.vehicleManager = vehicleManager;
     this.chargingPointManager = chargingPointManager;
     this.poller = poller;
@@ -165,9 +173,9 @@ export class ChargeController {
     // Request fresh state for each target via its middleware
     const loopTargets: LoopTarget[] = await Promise.all(
       targets.map(async (target): Promise<LoopTarget> => {
-        const activeCharge = selectActiveChargeSchedule(
-          schedules,
+        const activeCharge = await this.activeChargeFor(
           target,
+          schedules,
           now,
           config.timezone,
         );
@@ -438,6 +446,30 @@ export class ChargeController {
 
   // Execute a single target's decision and produce its log entry. Handles:
   // commands, polling suspension, event emission, transition tracking.
+  // The charge schedule covering the target now, with a solar-aware limit
+  // lowered for the solar still to come. Planned from the last-known state,
+  // so the adjusted limit is known before a fresh read is requested.
+  private async activeChargeFor(
+    target: ControlTarget,
+    schedules: ScheduleRows,
+    now: Date,
+    timezone: string,
+  ): Promise<ActiveChargeSchedule | null> {
+    const scheduled = selectActiveChargeSchedule(
+      schedules,
+      target,
+      now,
+      timezone,
+    );
+    if (!this.planner) return scheduled;
+    return await this.planner.planSchedule(
+      scheduled,
+      target,
+      schedules,
+      await target.getState(),
+    );
+  }
+
   private async processTargetDecision(
     target: ControlTarget,
     activeSchedule: ActiveChargeSchedule | null,

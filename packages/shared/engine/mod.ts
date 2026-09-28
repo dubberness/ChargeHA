@@ -13,7 +13,7 @@ export {
   selectActiveBlockout,
   selectActiveChargeSchedule,
 } from "./Schedules.ts";
-export type { ActiveChargeSchedule } from "./Schedules.ts";
+export type { ActiveChargeSchedule, SolarPlan } from "./Schedules.ts";
 export { createControlState } from "./types.ts";
 export type {
   ControllerConfig,

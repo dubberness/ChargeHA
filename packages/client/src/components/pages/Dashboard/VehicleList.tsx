@@ -75,6 +75,9 @@ function ConnectedVehicleCard(
   );
   const { commandPending, startCharging, stopCharging, setAmps, changeMode } =
     useChargerCommands(point.id);
+  const { data: projections } = trpc.forecast.projections.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+  });
 
   return (
     <VehicleCard
@@ -88,6 +91,8 @@ function ConnectedVehicleCard(
       commandsDisabled={cmdStatus?.commandsDisabled ?? false}
       commandsDisabledReason={cmdStatus?.reason ?? undefined}
       chargerStatus={point.state}
+      solarProjection={projections?.find((p) => p.vehicleId === vehicleId) ??
+        null}
     />
   );
 }

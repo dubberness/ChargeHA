@@ -15,6 +15,7 @@ function rowToSchedule(
     days: string[];
     chargeAmps: number | null;
     chargeLimitPct: number | null;
+    solarAware: boolean;
     enabled: boolean;
   },
 ) {
@@ -29,6 +30,7 @@ function rowToSchedule(
       days: row.days as DayOfWeek[],
       chargeAmps: row.chargeAmps as number,
       chargeLimitPct: row.chargeLimitPct,
+      solarAware: row.solarAware,
       enabled: row.enabled,
     };
   }
@@ -87,6 +89,7 @@ export class ScheduleService {
     days: DayOfWeek[];
     chargeAmps?: number | null;
     chargeLimitPct?: number | null;
+    solarAware?: boolean;
   }) {
     if (input.scheduleType === "charge") {
       const targets = [input.vehicleId, input.chargerId]
@@ -134,6 +137,7 @@ export class ScheduleService {
       days: input.days,
       chargeAmps: isCharge ? (input.chargeAmps ?? null) : null,
       chargeLimitPct: isCharge ? (input.chargeLimitPct ?? null) : null,
+      solarAware: isCharge && (input.solarAware ?? false),
     });
 
     const row = await this.db.getSchedule(id);
@@ -158,6 +162,7 @@ export class ScheduleService {
     days?: DayOfWeek[];
     chargeAmps?: number | null;
     chargeLimitPct?: number | null;
+    solarAware?: boolean;
     enabled?: boolean;
   }) {
     const existing = await this.db.getSchedule(input.id);
@@ -207,6 +212,7 @@ export class ScheduleService {
       days: input.days,
       chargeAmps: input.chargeAmps,
       chargeLimitPct: input.chargeLimitPct,
+      solarAware: input.solarAware,
       enabled: input.enabled,
     });
 

@@ -37,6 +37,7 @@ const DEFAULT_FORM: ScheduleFormData = {
   days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
   chargeAmps: 32,
   chargeLimitPct: 80,
+  solarAware: false,
 };
 
 function useInitForm(
@@ -67,6 +68,8 @@ function useInitForm(
         chargeLimitPct: editingSchedule.scheduleType === "charge"
           ? editingSchedule.chargeLimitPct ?? NO_LIMIT_PCT
           : DEFAULT_FORM.chargeLimitPct,
+        solarAware: editingSchedule.scheduleType === "charge" &&
+          editingSchedule.solarAware,
       });
     } else {
       setForm({
@@ -184,6 +187,7 @@ export function ScheduleForm({
           <ChargeSettings
             chargeAmps={form.chargeAmps}
             chargeLimitPct={form.chargeLimitPct ?? NO_LIMIT_PCT}
+            solarAware={form.solarAware ?? false}
             isChargerKeyed={form.chargerId !== null}
             maxAmps={maxAmps}
             updateField={updateField}

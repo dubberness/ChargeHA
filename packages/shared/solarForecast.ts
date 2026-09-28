@@ -66,6 +66,8 @@ export interface SolarForecastStatus {
   nextFetchAt: string | null;
   // Whether displayed forecasts use the learned correction.
   adjust: boolean;
+  // Local time of the evening summary, "HH:MM".
+  summaryTime: string;
   correction: ForecastCorrection | null;
   panelCheck: PanelCheck | null;
 }
@@ -103,6 +105,23 @@ export interface SolarForecastSummary {
   adjusted: boolean;
   // Set while the system is producing well under its usual clear-day output.
   panelLow: { recentShare: number } | null;
+}
+
+// What solar should add to a plugged-in car before the sun is done for
+// the day. Expected uses the forecast; cautious its low end.
+export interface SolarChargeProjection {
+  vehicleId: string;
+  expectedKwh: number;
+  cautiousKwh: number;
+  // Battery level then. Null until the battery size has been learned from
+  // past charging.
+  expectedPct: number | null;
+  cautiousPct: number | null;
+  limitPct: number;
+  // When the sun is done for the day.
+  untilAt: string;
+  // When the expected solar reaches the limit, if it does before untilAt.
+  limitAt: string | null;
 }
 
 export const periodEndMs = (period: SolarForecastPeriod): number =>

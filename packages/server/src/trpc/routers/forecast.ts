@@ -9,6 +9,7 @@ const settingsInput = z.object({
     .optional(),
   forecastDailyLimit: forecastConfigDef.forecastDailyLimit.schema.optional(),
   forecastAdjust: forecastConfigDef.forecastAdjust.schema.optional(),
+  forecastSummaryTime: forecastConfigDef.forecastSummaryTime.schema.optional(),
   // Write-only: status reports whether a key is set, never the key.
   apiKey: z.string().max(500).optional(),
 });
@@ -34,6 +35,17 @@ export const forecastRouter = router({
     .mutation(({ ctx, input }) =>
       ctx.forecastService.testKey(input.apiKey, input.provider)
     ),
+
+  // What solar should add to each plugged-in car before sunset.
+  projections: publicProcedure.query(({ ctx }) =>
+    ctx.solarPlanner.projections()
+  ),
+
+  // Sends the evening summary now, to try it out.
+  sendSummary: publicProcedure.mutation(async ({ ctx }) => {
+    await ctx.solarPlanner.sendSummary();
+    return { success: true as const };
+  }),
 
   // Uses one request per site from the daily quota.
   refresh: publicProcedure.mutation(({ ctx }) => ctx.forecastService.refresh()),

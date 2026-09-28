@@ -128,6 +128,14 @@ That ranking — charger, then vehicle, then untargeted — decides which schedu
 is in charge, not which one applies. Two of them can be active on the same
 charging point at the same minute, and then they merge.
 
+### Solar-aware schedules
+
+A vehicle's charge schedule can be marked solar-aware. Before the schedule step
+runs, the controller lowers that schedule's limit by the solar the car should
+get before the schedule next runs, so the grid only covers the rest. The engine
+itself is unchanged: it sees a lower `chargeLimitPct`, and the decision detail
+says why. See [solar-forecast.md](solar-forecast.md#solar-aware-schedules).
+
 ### Two schedules at once
 
 A charger schedule matches the charger directly. A vehicle schedule matches the

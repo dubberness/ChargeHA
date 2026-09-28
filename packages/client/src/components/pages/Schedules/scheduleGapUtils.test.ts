@@ -24,6 +24,7 @@ describe("scheduleGapUtils", () => {
     days: [...ALL_DAYS],
     chargeAmps: 16,
     chargeLimitPct: 80,
+    solarAware: false,
     enabled: true,
   });
 

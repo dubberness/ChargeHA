@@ -5,12 +5,14 @@ import {
   Key,
   Plug,
   RefreshCw,
+  Sun,
   TriangleAlert,
   Unplug,
   Zap,
 } from "lucide-react";
 import { Badge, Button, Callout, Card, Skeleton, Text } from "@radix-ui/themes";
 import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
+import type { SolarChargeProjection } from "@chargeha/shared/solarForecast";
 import { formatRelativeTime } from "../../utils/Format.ts";
 import { StaticMap } from "../StaticMap/StaticMap.tsx";
 import { Spinner } from "../ui/Spinner.tsx";
@@ -54,6 +56,8 @@ interface VehicleCardProps {
   // An object rather than a bare string so the absent case (no charger of
   // its own) is one null.
   chargingPoint?: { name: string } | null;
+  // What solar should add before the sun is done today.
+  solarProjection?: SolarChargeProjection | null;
 }
 
 const MODE_LABELS: Record<VehicleMode, string> = {
@@ -289,16 +293,57 @@ function VehicleModeToggle(
   );
 }
 
+const clockTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+// "Solar should bring it to ~85% by 6:12 pm (at least 78%)"
+export function solarProjectionText(p: SolarChargeProjection): string {
+  if (p.expectedKwh < 0.1) return "Not enough sun left today to charge";
+  if (p.expectedPct === null) {
+    return `Solar should add ~${p.expectedKwh} kWh by ${clockTime(p.untilAt)}`;
+  }
+  const cautious = p.cautiousPct !== null && p.cautiousPct < p.expectedPct
+    ? ` (at least ${p.cautiousPct}%)`
+    : "";
+  if (p.limitAt) {
+    return `Solar should fill it to ${p.limitPct}% by about ${
+      clockTime(p.limitAt)
+    }${cautious}`;
+  }
+  return `Solar should bring it to ~${p.expectedPct}% by ${
+    clockTime(p.untilAt)
+  }${cautious}`;
+}
+
+function SolarProjectionLine(
+  { projection }: { projection: SolarChargeProjection },
+) {
+  return (
+    <div className={styles.projection}>
+      <Sun size={14} />
+      <Text size="1" color="gray">{solarProjectionText(projection)}</Text>
+    </div>
+  );
+}
+
 function VehicleBatterySection(
-  { batteryPercent, chargeLimitPercent, isCharging }: {
+  { batteryPercent, chargeLimitPercent, isCharging, projectedPercent }: {
     batteryPercent: number;
     chargeLimitPercent: number;
     isCharging: boolean;
+    projectedPercent: number | null;
   },
 ) {
   return (
     <div className={styles.batterySection}>
       <div className={styles.batteryBar}>
+        {projectedPercent !== null && projectedPercent > batteryPercent && (
+          <div
+            className={styles.projectedFill}
+            data-testid="solar-projection-fill"
+            style={{ width: `${projectedPercent}%` }}
+          />
+        )}
         <div
           className={styles.batteryFill}
           style={{
@@ -349,6 +394,7 @@ export function VehicleCard({
   chargerStatus,
   readOnly = false,
   chargingPoint,
+  solarProjection = null,
 }: VehicleCardProps) {
   if (loading) {
     return (
@@ -407,7 +453,9 @@ export function VehicleCard({
         batteryPercent={batteryPercent}
         chargeLimitPercent={chargeLimitPercent}
         isCharging={state.isCharging}
+        projectedPercent={solarProjection?.expectedPct ?? null}
       />
+      {solarProjection && <SolarProjectionLine projection={solarProjection} />}
 
       {/* Status */}
       <div className={layout.status}>

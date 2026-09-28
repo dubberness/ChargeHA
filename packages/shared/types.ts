@@ -221,6 +221,9 @@ export interface ChargeSchedule {
   chargeAmps: number;
   // Null for charger-keyed schedules — no battery visibility.
   chargeLimitPct: number | null;
+  // Lower the limit by the solar the car should get before the schedule
+  // next runs. Needs a solar forecast.
+  solarAware: boolean;
   enabled: boolean;
 }
 
@@ -246,6 +249,7 @@ export interface ScheduleFormData {
   days: DayOfWeek[];
   chargeAmps: number;
   chargeLimitPct: number | null;
+  solarAware?: boolean;
 }
 
 // ---- Notification Types ----
@@ -265,7 +269,8 @@ export type NotificationEventType =
   | "safety_trip"
   | "mode_changed"
   | "arrived_home_not_plugged_in"
-  | "solar_underperforming";
+  | "solar_underperforming"
+  | "daily_solar_summary";
 
 export interface NotificationEventInfo {
   key: NotificationEventType;
@@ -352,6 +357,12 @@ export const NOTIFICATION_EVENTS: NotificationEventInfo[] = [
     label: "Solar Underperforming",
     description:
       "Panels made well under their usual output on several clear days (needs Solar Forecast)",
+  },
+  {
+    key: "daily_solar_summary",
+    label: "Daily Solar Summary",
+    description:
+      "Each evening: today's solar, tomorrow's forecast and any top-up planned tonight (needs Solar Forecast)",
   },
 ];
 

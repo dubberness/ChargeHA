@@ -24,6 +24,7 @@ import { StatsService } from "../services/StatsService.ts";
 import { SolarForecastService } from "../services/SolarForecastService.ts";
 import { SolcastProvider } from "../services/forecast-providers/SolcastProvider.ts";
 import { ForecastLearner } from "../services/ForecastLearner.ts";
+import { SolarChargePlanner } from "../services/SolarChargePlanner.ts";
 import { ConfigService } from "../services/ConfigService.ts";
 import { GeocodeService } from "../services/GeocodeService.ts";
 import { OidcService } from "../services/OidcService.ts";
@@ -119,6 +120,13 @@ function buildAuxServices(
       new Logger("ForecastLearner", logLevel),
     ),
   );
+  const solarPlanner = new SolarChargePlanner(
+    db,
+    forecastService,
+    vehicleManager,
+    notificationService,
+    new Logger("SolarPlanner", logLevel),
+  );
   const geocodeService = new GeocodeService(new Logger("Geocode", logLevel));
   const oidcService = new OidcService(
     db,
@@ -159,6 +167,7 @@ function buildAuxServices(
     tariffService,
     statsService,
     forecastService,
+    solarPlanner,
     geocodeService,
     oidcService,
     rateLimiter,
@@ -188,8 +197,30 @@ function registerNotificationListeners(
   );
 }
 
+// The forecast, and what uses it for charging, start and stop together.
+function startForecasting(
+  s: {
+    forecastService: SolarForecastService;
+    solarPlanner: SolarChargePlanner;
+  },
+): void {
+  s.forecastService.start();
+  s.solarPlanner.start();
+}
+
+function stopForecasting(
+  s: {
+    forecastService: SolarForecastService;
+    solarPlanner: SolarChargePlanner;
+  },
+): void {
+  s.forecastService.stop();
+  s.solarPlanner.stop();
+}
+
 function startBackgroundServices(
   {
+    solarPlanner,
     db,
     vehicleManager,
     chargingPointManager,
@@ -199,6 +230,7 @@ function startBackgroundServices(
     eventEmitter,
     logLevel,
   }: {
+    solarPlanner: SolarChargePlanner;
     db: AppDatabase;
     vehicleManager: VehicleManager;
     chargingPointManager: ChargingPointManager;
@@ -225,6 +257,7 @@ function startBackgroundServices(
     configService,
     eventEmitter,
     new Logger("ChargeController", logLevel),
+    solarPlanner,
   );
   new Overseer(db, eventEmitter, new Logger("Overseer", logLevel));
 }
@@ -372,9 +405,10 @@ function buildServices(
     encryptionKey,
   );
 
-  forecastService.start();
+  startForecasting(auxServices);
 
   startBackgroundServices({
+    solarPlanner: auxServices.solarPlanner,
     db,
     vehicleManager,
     chargingPointManager,
@@ -394,6 +428,7 @@ function buildServices(
     tariffService,
     statsService,
     forecastService,
+    solarPlanner: auxServices.solarPlanner,
     configService,
     geocodeService,
     oidcService,
@@ -486,6 +521,7 @@ function buildHttpApp(
     tariffService: services.tariffService,
     statsService: services.statsService,
     forecastService: services.forecastService,
+    solarPlanner: services.solarPlanner,
     configService: services.configService,
     geocodeService: services.geocodeService,
     healthService: services.healthService,
@@ -525,6 +561,7 @@ function setupTrpcEndpoint(
     tariffService: TariffService;
     statsService: StatsService;
     forecastService: SolarForecastService;
+    solarPlanner: SolarChargePlanner;
     configService: ConfigService;
     geocodeService: GeocodeService;
     healthService: HealthService;
@@ -558,6 +595,7 @@ function setupTrpcEndpoint(
         tariffService: ctx.tariffService,
         statsService: ctx.statsService,
         forecastService: ctx.forecastService,
+        solarPlanner: ctx.solarPlanner,
         configService: ctx.configService,
         geocodeService: ctx.geocodeService,
         healthService: ctx.healthService,
@@ -701,7 +739,7 @@ export async function bootstrap(
       };
       // Stop the HTTP server first so in-flight requests don't hit a closed DB.
       await step("http server", () => server.shutdown());
-      await step("solar forecast", () => services.forecastService.stop());
+      await step("solar forecast", () => stopForecasting(services));
       // Tesla plugin's shutdown() reaps the tesla-http-proxy subprocess
       await step("vehicle plugins", () => vehicleRegistry.shutdownAll());
       await step("energy plugins", () => energyRegistry.shutdownAll());

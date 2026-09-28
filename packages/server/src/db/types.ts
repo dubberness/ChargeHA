@@ -49,6 +49,7 @@ export interface ScheduleRow {
   days: DayOfWeek[];
   chargeAmps: number | null;
   chargeLimitPct: number | null;
+  solarAware: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +65,7 @@ export interface CreateScheduleInput {
   days: DayOfWeek[];
   chargeAmps: number | null;
   chargeLimitPct: number | null;
+  solarAware?: boolean;
   enabled?: boolean;
 }
 

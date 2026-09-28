@@ -342,6 +342,26 @@ describe("ScheduleForm", () => {
     expect(screen.getByText(socNote)).toBeInTheDocument();
   });
 
+  it("saves a vehicle schedule as solar-aware", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    renderWithProviders(<ScheduleForm {...defaultProps} onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole("switch"));
+    submitForm();
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ solarAware: true }),
+      );
+    });
+  });
+
+  it("offers solar-aware only when the schedule can see the battery", () => {
+    renderWithProviders(<ScheduleForm {...chargerProps} />);
+
+    expect(screen.queryByText("Solar-aware")).not.toBeInTheDocument();
+  });
+
   it("omits the SOC helper note on a vehicle schedule", () => {
     renderWithProviders(<ScheduleForm {...defaultProps} />);
 

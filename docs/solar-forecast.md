@@ -9,13 +9,20 @@ what your system actually produced:
 - **Stats** — a forecast line over the day, month and year charts, the forecast
   total for the period, and **Actual vs Forecast** for the hours that have
   passed.
-
 - **Adjusted to your system** — the forecast learns how your roof actually
   compares with it, hour by hour, and corrects itself (below).
 - **System check** — a warning, and optionally a notification, when your panels
   make well under their usual output on several clear days.
+- **Solar to your car** — on the vehicle card, where solar should take the
+  battery by the time the sun is done for the day.
+- **Solar-aware schedules** — an overnight top-up that only charges from the
+  grid what tomorrow's sun will not cover.
+- **Evening summary** — today's solar, tomorrow's forecast and tonight's top-up
+  as a notification.
 
-The forecast is display only. It does not change how charging is controlled.
+Solar tracking itself does not use the forecast: it still follows what the
+panels are producing right now. Only a charge schedule marked solar-aware
+changes what it does because of the forecast.
 
 ## Providers
 
@@ -146,6 +153,84 @@ history before it can say anything; until then it shows **Waiting**.
 A low result usually means an inverter fault (a string or optimiser down), dirty
 panels, or new shade. Once it has been low for over a month the low days become
 the new usual, so fix it or check it when it first shows.
+
+## Solar to your car
+
+While a car is plugged in at home on **Auto** with solar tracking on, its card
+on the dashboard says what solar should add before the sun is done for the day:
+"Solar should bring it to ~85% by 6:12 pm (at least 78%)", with that level shown
+faintly on the battery bar. When the car should reach its limit sooner it says
+when: "Solar should fill it to 90% by about 2:30 pm".
+
+For each forecast half-hour still to come today ChargeHA works out what the car
+would get, following the same rules as solar tracking:
+
+- the forecast, less what your house typically uses at that hour, less the
+  **solar margin**;
+- nothing when production is under **minimum solar generation**, or what is left
+  is under the car's minimum amps (or **minimum excess solar**);
+- no more than the car's maximum amps;
+- nothing while a blockout is active.
+
+"At least" uses the low end of the forecast range.
+
+Two things are learned from your history:
+
+- **House load** — the median, across the last 14 days, of what the house used
+  in each hour of the day, with car charging taken out.
+- **Battery size** — energy per percent, from the car's past charging sessions:
+  the energy delivered (measured at the charger, so charging losses are
+  included) divided by the percent gained. It needs sessions that add up to 15%
+  of charge. Until then the card gives kWh instead of a percentage.
+
+It assumes the car stays plugged in, and with several cars plugged in each one's
+figure assumes it gets all the solar.
+
+## Solar-aware schedules
+
+A charge schedule for a vehicle can be marked **Solar-aware** (Schedules → edit
+→ Solar-aware). Its charge limit then means "where I want the car once the sun
+has done its part", and the grid only covers the rest.
+
+When the schedule starts, ChargeHA works out how much solar the car should get
+between the end of this window and the next time the schedule runs, using the
+**low end** of the forecast range so a cloudy day still gets topped up. It
+charges to the schedule's limit less that.
+
+For example, an overnight schedule from 9 pm to 7 am with a 60% limit:
+
+| Tomorrow    | Solar before 9 pm tomorrow | Tonight's limit |
+| ----------- | -------------------------- | --------------- |
+| Sunny       | ~40%                       | 20%             |
+| Patchy      | ~15%                       | 45%             |
+| Heavy cloud | ~0%                        | 60%             |
+
+- Everything the car should get before the schedule next runs counts. A
+  weekday-only schedule counts the whole weekend's sun on Friday night.
+- The plan is made once, when the window opens, and kept for the whole window,
+  so the limit does not move while the car charges.
+- Until the battery size has been learned, or with no forecast, the schedule
+  charges to its full limit as usual.
+- The controller's log explains it: "Start charging at 16A (schedule
+  21:00-07:00, solar-aware: 60% less ~15% from solar)".
+
+Like the projection, it assumes the car stays plugged in at home during the day.
+
+## Evening summary
+
+Each evening at the time set in **Settings → Solar Forecast → Evening summary**
+(8 pm by default) ChargeHA can send a summary through your notification
+provider:
+
+```text
+Today: 18.2 kWh made (forecast 20.1 kWh).
+Tomorrow: about 27.8 kWh (likely 11.4–39.2).
+Timmy Tesla: 6.3 kWh from solar today, now 74%.
+Tonight from 21:00: no grid top-up needed — 74% is already at or above 20% (60% less ~40% expected from solar).
+```
+
+Turn on **Daily Solar Summary** in Settings → Notifications to receive it.
+**Send now** next to the time sends one straight away to try it.
 
 ## Troubleshooting
 

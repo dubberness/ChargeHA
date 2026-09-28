@@ -150,12 +150,13 @@ export class Trace {
       chargeLimitPct: number | null;
     },
     batteryLevel: number,
+    solarNote = "",
   ): StepTrace {
     return {
       check: "charge_schedule",
       result: `${
         scheduleSummary(schedule)
-      } — limit reached (${batteryLevel}% >= ${schedule.chargeLimitPct}%)`,
+      } — limit reached (${batteryLevel}% >= ${schedule.chargeLimitPct}%${solarNote})`,
     };
   }
 

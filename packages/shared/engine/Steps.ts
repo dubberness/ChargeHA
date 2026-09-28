@@ -168,11 +168,17 @@ export class Steps {
     const effective = active.effective;
 
     if (scheduleLimitReached(active, state.batteryLevel) !== undefined) {
-      return pass([Trace.scheduleLimitReached(effective, state.batteryLevel)]);
+      return pass([
+        Trace.scheduleLimitReached(
+          effective,
+          state.batteryLevel,
+          Steps.solarSuffix(active),
+        ),
+      ]);
     }
 
     const amps = effective.chargeAmps ?? state.chargeAmpsMax;
-    const merged = Steps.mergedSuffix(active);
+    const merged = `${Steps.mergedSuffix(active)}${Steps.solarSuffix(active)}`;
     return {
       decision: Steps.chargeAt(state, amps, "schedule", {
         start:
@@ -571,6 +577,14 @@ export class Steps {
     const pct = active.effective.chargeLimitPct;
     if (pct === null) return " merged";
     return ` merged, limit ${pct}%`;
+  }
+
+  // Suffix explaining a limit lowered for expected solar, e.g.
+  // ", solar-aware: 75% less ~30% from solar". Empty otherwise.
+  private static solarSuffix(active: ActiveChargeSchedule): string {
+    const plan = active.solarPlan;
+    if (!plan) return "";
+    return `, solar-aware: ${plan.baseLimitPct}% less ~${plan.solarPct}% from solar`;
   }
 
   private static insufficientReason(

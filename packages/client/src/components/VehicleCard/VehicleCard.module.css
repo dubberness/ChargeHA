@@ -61,7 +61,25 @@
   margin-bottom: 4px;
 }
 
+/* Where solar should take the battery by the end of the day. */
+.projectedFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--color-solar);
+  opacity: 0.3;
+}
+
+.projection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 10px;
+  color: var(--color-solar);
+}
+
 .batteryFill {
+  position: relative;
   height: 100%;
   border-radius: 4px;
   transition: width 0.5s ease;
