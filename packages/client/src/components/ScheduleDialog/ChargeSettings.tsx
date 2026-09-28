@@ -1,10 +1,11 @@
-import { Button, Text } from "@radix-ui/themes";
+import { Button, Switch, Text } from "@radix-ui/themes";
 import type { ScheduleFormData } from "@chargeha/shared";
 import styles from "./ScheduleDialog.module.css";
 
 interface ChargeSettingsProps {
   chargeAmps: number;
   chargeLimitPct: number;
+  solarAware: boolean;
   isChargerKeyed: boolean;
   maxAmps: number;
   updateField: <K extends keyof ScheduleFormData>(
@@ -17,6 +18,7 @@ interface ChargeSettingsProps {
 export function ChargeSettings({
   chargeAmps,
   chargeLimitPct,
+  solarAware,
   isChargerKeyed,
   maxAmps,
   updateField,
@@ -108,6 +110,25 @@ export function ChargeSettings({
           </Text>
         )}
       </div>
+
+      {!isChargerKeyed && (
+        <div className={styles.field}>
+          <Text as="label" size="2" weight="medium">
+            <Switch
+              size="1"
+              checked={solarAware}
+              onCheckedChange={(checked) => updateField("solarAware", checked)}
+              style={{ marginRight: 8, verticalAlign: "middle" }}
+            />
+            Solar-aware
+          </Text>
+          <Text size="1" color="gray">
+            Counts the solar the car should get before this schedule next runs,
+            and only charges to the limit less that. Uses the cautious end of
+            the solar forecast, so a cloudy day still gets topped up.
+          </Text>
+        </div>
+      )}
     </>
   );
 }

@@ -122,6 +122,9 @@ vi.mock("../../../trpc.ts", () => ({
       summary: {
         useQuery: vi.fn(() => ({ data: null, isLoading: false })),
       },
+      projections: {
+        useQuery: vi.fn(() => ({ data: [], isLoading: false })),
+      },
     },
     tesla: {
       getConfig: {

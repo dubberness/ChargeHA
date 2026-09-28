@@ -225,6 +225,7 @@ export class SolarForecastService {
       lastError: state.lastError,
       nextFetchAt: next === null ? null : new Date(next).toISOString(),
       adjust: config.forecastAdjust,
+      summaryTime: config.forecastSummaryTime,
       correction: learning.correction,
       panelCheck: learning.panelCheck,
     };
@@ -405,6 +406,28 @@ export class SolarForecastService {
 
   private async timezone(): Promise<string> {
     return (await this.db.getConfig("timezone")) || "UTC";
+  }
+
+  // ── Forecast for other services ──────────────────────────────────────
+
+  // Periods starting in [start, end), with the learned correction applied
+  // when it is on. Empty when forecasting is off.
+  async getAdjustedPeriods(
+    startMs: number,
+    endMs: number,
+  ): Promise<StoredForecastPeriod[]> {
+    if (!(await this.activeProvider())) return [];
+    const [periods, learning] = await Promise.all([
+      this.db.forecasts.getPeriods(
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+      ),
+      readLearningState(this.db),
+    ]);
+    const hourFactors = activeFactors(learning.adjust, learning.correction);
+    return hourFactors
+      ? applyCorrection(periods, hourFactors, learning.timezone)
+      : periods;
   }
 
   // ── Dashboard summary ────────────────────────────────────────────────

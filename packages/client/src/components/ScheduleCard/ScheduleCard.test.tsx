@@ -20,6 +20,7 @@ describe("ScheduleCard", () => {
     days: ["mon", "tue", "wed", "thu", "fri"],
     chargeAmps: 16,
     chargeLimitPct: 80,
+    solarAware: false,
     enabled: true,
   };
 
@@ -51,6 +52,19 @@ describe("ScheduleCard", () => {
       expect(screen.getByText(/6:00 AM/)).toBeInTheDocument();
       expect(screen.getByText("Weekdays")).toBeInTheDocument();
       expect(screen.getByText(/Charge at 16A to 80%/)).toBeInTheDocument();
+    });
+
+    it("says when a charge schedule counts expected solar", () => {
+      renderWithProviders(
+        <ScheduleCard
+          schedule={{ ...chargeSchedule, solarAware: true }}
+          {...defaultHandlers}
+        />,
+      );
+
+      expect(
+        screen.getByText(/Charge at 16A to 80%, less expected solar/),
+      ).toBeInTheDocument();
     });
 
     it("renders blockout schedule", () => {

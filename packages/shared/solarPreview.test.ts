@@ -290,6 +290,7 @@ describe("previewSolarAllocation", () => {
       days: ["mon"],
       chargeAmps: 10,
       chargeLimitPct: 80,
+      solarAware: false,
       enabled: true,
     };
     const result = previewSolarAllocation(

@@ -132,6 +132,7 @@ export const chargeSchedule: ChargeSchedule = {
   days: ["mon", "tue", "wed", "thu", "fri"],
   chargeAmps: 16,
   chargeLimitPct: 80,
+  solarAware: false,
   enabled: true,
 };
 

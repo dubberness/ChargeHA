@@ -48,8 +48,11 @@ export function ScheduleCard({
     schedule.scheduleType === "charge" && schedule.chargeLimitPct !== null
       ? ` to ${schedule.chargeLimitPct}%`
       : "";
+  const solarSuffix = schedule.scheduleType === "charge" && schedule.solarAware
+    ? ", less expected solar"
+    : "";
   const detailText = isCharge
-    ? `Charge at ${schedule.chargeAmps}A${limitSuffix}`
+    ? `Charge at ${schedule.chargeAmps}A${limitSuffix}${solarSuffix}`
     : "Stop all charging";
 
   return (

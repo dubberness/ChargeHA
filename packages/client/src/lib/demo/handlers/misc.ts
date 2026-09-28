@@ -19,8 +19,10 @@ export const miscHandlers: Record<string, QueryHandler> = {
     lastError: null,
     nextFetchAt: null,
     adjust: true,
+    summaryTime: "20:00",
     correction: null,
     panelCheck: null,
   }),
   "forecast.summary": () => null,
+  "forecast.projections": () => [],
 };

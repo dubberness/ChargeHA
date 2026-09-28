@@ -89,6 +89,7 @@ export const GATED_MUTATIONS = [
   "forecast.saveSettings",
   "forecast.testKey",
   "forecast.refresh",
+  "forecast.sendSummary",
 ] as const satisfies readonly MutationPath[];
 
 export type GatedMutationPath = typeof GATED_MUTATIONS[number];

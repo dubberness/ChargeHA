@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   saveMutate: vi.fn(),
   testMutate: vi.fn(),
   refreshMutate: vi.fn(),
+  sendSummaryMutate: vi.fn(),
   testData: undefined as unknown,
 }));
 
@@ -43,6 +44,13 @@ vi.mock("../../../trpc.ts", () => ({
           mutate: h.refreshMutate,
           isPending: false,
           data: undefined,
+        })),
+      },
+      sendSummary: {
+        useMutation: vi.fn(() => ({
+          mutate: h.sendSummaryMutate,
+          isPending: false,
+          isSuccess: false,
         })),
       },
     },
@@ -96,6 +104,7 @@ describe("SolarForecastSettings", () => {
     lastError: null,
     nextFetchAt: null,
     adjust: true,
+    summaryTime: "20:00",
     correction: null,
     panelCheck: null,
     ...overrides,
@@ -202,7 +211,24 @@ describe("SolarForecastSettings", () => {
       forecastSiteIds: "abcd-1234",
       forecastDailyLimit: 50,
       forecastAdjust: true,
+      forecastSummaryTime: "20:00",
     });
+  });
+
+  it("saves the evening summary time and sends one on demand", () => {
+    withStatus(status());
+    renderWithProviders(<SolarForecastSettings />);
+
+    fireEvent.change(screen.getByLabelText("Evening summary time"), {
+      target: { value: "19:30" },
+    });
+    fireEvent.click(screen.getByText("Send now"));
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(h.sendSummaryMutate).toHaveBeenCalled();
+    expect(h.saveMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ forecastSummaryTime: "19:30" }),
+    );
   });
 
   it("saves turning the adjustment off", () => {

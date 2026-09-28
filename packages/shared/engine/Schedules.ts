@@ -114,12 +114,23 @@ function compareSchedules(a: EngineSchedule, b: EngineSchedule): number {
   return a.id < b.id ? -1 : 1;
 }
 
+// How a solar-aware schedule's limit was lowered for the solar the car
+// should get before the schedule next runs. Worked out by the caller.
+export interface SolarPlan {
+  // The limit as set on the schedule.
+  baseLimitPct: number;
+  // Cautious estimate of what solar adds before the schedule next runs.
+  solarPct: number;
+}
+
 export interface ActiveChargeSchedule {
   // Window and amps from the highest-ranked overlapping schedule, with
   // chargeLimitPct replaced by the strictest limit of the whole set.
   effective: EngineSchedule;
   contributors: EngineSchedule[];
   merged: boolean;
+  // Set when effective.chargeLimitPct was lowered for expected solar.
+  solarPlan?: SolarPlan;
 }
 
 // Blockouts are always global; charge schedules match by chargerId,

@@ -241,6 +241,13 @@ export const forecastConfigDef = defineSection({
     schema: z.boolean(),
     default: true,
   },
+  // Local time the evening summary goes out, "HH:MM". Sent only when the
+  // daily_solar_summary notification event is on.
+  forecastSummaryTime: {
+    key: "forecast_summary_time",
+    schema: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    default: "20:00",
+  },
 });
 export type ForecastConfig = SectionType<typeof forecastConfigDef>;
 
@@ -277,6 +284,12 @@ export const forecastStateDef = defineSection({
   // JSON PanelCheck, rechecked each day.
   forecastPanelCheck: {
     key: "forecast_panel_check",
+    schema: z.string(),
+    default: "",
+  },
+  // Local date the evening summary last went out, YYYY-MM-DD.
+  forecastSummarySentOn: {
+    key: "forecast_summary_sent_on",
     schema: z.string(),
     default: "",
   },

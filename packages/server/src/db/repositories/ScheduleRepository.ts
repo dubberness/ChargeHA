@@ -13,6 +13,7 @@ export class ScheduleRepository {
     return {
       ...row,
       days: parseDays(row.daysJson),
+      solarAware: row.solarAware === 1,
       enabled: row.enabled === 1,
     } as unknown as ScheduleRow;
   }
@@ -45,6 +46,7 @@ export class ScheduleRepository {
       daysJson: JSON.stringify(input.days),
       chargeAmps: input.chargeAmps,
       chargeLimitPct: input.chargeLimitPct,
+      solarAware: input.solarAware ? 1 : 0,
       enabled: input.enabled !== false ? 1 : 0,
     });
   }
@@ -64,6 +66,9 @@ export class ScheduleRepository {
     if (input.chargeAmps !== undefined) set.chargeAmps = input.chargeAmps;
     if (input.chargeLimitPct !== undefined) {
       set.chargeLimitPct = input.chargeLimitPct;
+    }
+    if (input.solarAware !== undefined) {
+      set.solarAware = input.solarAware ? 1 : 0;
     }
     if (input.enabled !== undefined) set.enabled = input.enabled ? 1 : 0;
 

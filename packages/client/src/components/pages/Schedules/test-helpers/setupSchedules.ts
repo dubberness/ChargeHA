@@ -67,6 +67,7 @@ export const chargeSchedule: ChargeSchedule = {
   days: ["mon", "tue", "wed"] as DayOfWeek[],
   chargeAmps: 16,
   chargeLimitPct: 80,
+  solarAware: false,
   enabled: true,
 };
 
@@ -81,6 +82,7 @@ export const chargerKeyedSchedule: ChargeSchedule = {
   days: ["mon", "tue", "wed"] as DayOfWeek[],
   chargeAmps: 32,
   chargeLimitPct: null,
+  solarAware: false,
   enabled: true,
 };
 

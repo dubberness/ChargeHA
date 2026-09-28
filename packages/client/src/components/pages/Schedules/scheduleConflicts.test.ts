@@ -29,6 +29,7 @@ describe("scheduleConflicts", () => {
     days: ALL_DAYS,
     chargeAmps: 32,
     chargeLimitPct: null,
+    solarAware: false,
     enabled: true,
     ...o,
   });

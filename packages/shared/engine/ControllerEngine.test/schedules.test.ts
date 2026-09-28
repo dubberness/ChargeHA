@@ -423,4 +423,52 @@ describe("ControllerEngine — schedules", () => {
       expect(output.decisions.get("V1")?.action).toBe("start");
     });
   });
+
+  describe("solar-aware", () => {
+    const now = new Date("2026-01-01T03:00:00Z");
+    const schedule: EngineSchedule = {
+      id: "s1",
+      vehicleId: null,
+      chargerId: null,
+      scheduleType: "charge",
+      startTime: "02:00",
+      endTime: "06:00",
+      days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      chargeAmps: 16,
+      chargeLimitPct: 60,
+      solarAware: true,
+      enabled: true,
+    };
+    // The caller lowered the limit from 60% to 45% for expected solar.
+    const decide = (batteryLevel: number) => {
+      const input = makeInput({
+        vehicle: { state: { batteryLevel } },
+        configOverrides: { timezone: "UTC" },
+        now,
+        schedules: [schedule],
+      });
+      const active = input.vehicles[0].activeSchedule;
+      if (!active) throw new Error("schedule should be active");
+      input.vehicles[0].activeSchedule = {
+        ...active,
+        effective: { ...active.effective, chargeLimitPct: 45 },
+        solarPlan: { baseLimitPct: 60, solarPct: 15 },
+      };
+      return new ControllerEngine().decide(input).decisions.get("V1");
+    };
+
+    it("says why the limit is lower", () => {
+      expect(decide(30)?.detail).toBe(
+        "Start charging at 16A (schedule 02:00-06:00, solar-aware: 60% less ~15% from solar)",
+      );
+    });
+
+    it("stops charging on the grid at the lowered limit", () => {
+      const d = decide(50);
+      expect(d?.reason).not.toBe("schedule");
+      expect(d?.checks.map((c) => c.result)).toContain(
+        "active: 02:00-06:00 @ 16A — limit reached (50% >= 45%, solar-aware: 60% less ~15% from solar)",
+      );
+    });
+  });
 });

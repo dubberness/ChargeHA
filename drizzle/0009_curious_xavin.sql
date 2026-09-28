@@ -1,0 +1,1 @@
+ALTER TABLE `schedules` ADD `solar_aware` integer DEFAULT 0 NOT NULL;

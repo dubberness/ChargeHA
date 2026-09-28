@@ -329,6 +329,83 @@ export class StatsRepository {
     }));
   }
 
+  /** Average home consumption and home car charging in each UTC 15-minute
+   *  bucket with energy readings in [start, end). */
+  async getHouseLoadBuckets(
+    startIso: string,
+    endIso: string,
+  ): Promise<Array<{ startMs: number; homeW: number; carW: number }>> {
+    const start = toSqliteDatetime(startIso);
+    const end = toSqliteDatetime(endIso);
+    const rows = await this.db.all<{
+      bucket_start: number;
+      home_w: number;
+      car_w: number | null;
+    }>(sql`WITH home AS (
+              SELECT CAST(strftime('%s', timestamp) AS INTEGER) / 900 * 900 AS bucket_start,
+                     AVG(home_consumption_w) AS home_w
+              FROM energy_readings
+              WHERE timestamp >= ${start} AND timestamp < ${end} AND poll_failed = 0
+              GROUP BY bucket_start
+            ), per_vehicle AS (
+              SELECT CAST(strftime('%s', timestamp) AS INTEGER) / 900 * 900 AS bucket_start,
+                     AVG(charge_power_w) AS car_w
+              FROM vehicle_charge_readings
+              WHERE timestamp >= ${start} AND timestamp < ${end} AND is_home = 1
+              GROUP BY bucket_start, vehicle_id
+            ), car AS (
+              SELECT bucket_start, SUM(car_w) AS car_w FROM per_vehicle GROUP BY bucket_start
+            )
+            SELECT home.bucket_start, home.home_w, car.car_w
+            FROM home LEFT JOIN car ON car.bucket_start = home.bucket_start
+            ORDER BY home.bucket_start`);
+    return rows.map((row) => ({
+      startMs: row.bucket_start * 1000,
+      homeW: row.home_w ?? 0,
+      carW: row.car_w ?? 0,
+    }));
+  }
+
+  /** One vehicle's charge readings since `startIso`, oldest first. */
+  async getVehicleChargeReadings(
+    vehicleId: string,
+    startIso: string,
+  ): Promise<
+    Array<{ ms: number; powerW: number; batteryLevel: number | null }>
+  > {
+    const rows = await this.db.all<{
+      ts: number;
+      charge_power_w: number;
+      battery_level: number | null;
+    }>(sql`SELECT CAST(strftime('%s', timestamp) AS INTEGER) AS ts,
+                  charge_power_w, battery_level
+            FROM vehicle_charge_readings
+            WHERE vehicle_id = ${vehicleId}
+              AND timestamp >= ${toSqliteDatetime(startIso)}
+            ORDER BY timestamp`);
+    return rows.map((row) => ({
+      ms: row.ts * 1000,
+      powerW: row.charge_power_w,
+      batteryLevel: row.battery_level,
+    }));
+  }
+
+  /** Solar energy each vehicle took at home in [start, end). */
+  async getVehicleSolarWh(
+    startIso: string,
+    endIso: string,
+  ): Promise<Map<string, number>> {
+    const rows = await this.db.all<{ vehicle_id: string; wh: number }>(
+      sql`SELECT vehicle_id, SUM(solar_contribution_w * (60.0 / 3600.0)) AS wh
+          FROM vehicle_charge_readings
+          WHERE timestamp >= ${toSqliteDatetime(startIso)}
+            AND timestamp < ${toSqliteDatetime(endIso)}
+            AND is_home = 1
+          GROUP BY vehicle_id`,
+    );
+    return new Map(rows.map((row) => [row.vehicle_id, row.wh ?? 0]));
+  }
+
   /** Aggregate home energy readings by 15-min intervals for a given day (YYYY-MM-DD local). */
   async getEnergyStatsDayDetailed(
     date: string,
