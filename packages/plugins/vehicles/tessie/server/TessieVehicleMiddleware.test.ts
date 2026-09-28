@@ -7,6 +7,7 @@ import type { VehicleRequestContext } from "@chargeha/shared/plugins";
 import { Logger } from "@chargeha/server/lib/Logger";
 import type { TessieAdapter } from "./TessieAdapter.ts";
 import {
+  COMMAND_CONFIRM_MS,
   STATE_CACHE_MS,
   TessieVehicleMiddleware,
 } from "./TessieVehicleMiddleware.ts";
@@ -178,6 +179,65 @@ describe("TessieVehicleMiddleware", () => {
       await middleware.requestState(ctx());
       adapter.commandResult = false;
       expect(await middleware.startCharging(cc)).toBe(false);
+      expect(adapter.fetches).toBe(2);
+    });
+  });
+
+  describe("after a command", () => {
+    const TICK_MS = 30_000;
+    // Tessie reporting the car at `amps`, read at `atMs`.
+    const report = (amps: number, atMs: number) => {
+      adapter.state = {
+        ...adapter.state,
+        chargeAmps: amps,
+        lastUpdated: new Date(atMs).toISOString(),
+      };
+    };
+
+    beforeEach(async () => {
+      report(14, Date.now());
+      await middleware.requestState(ctx());
+      time.tick(1000);
+      await middleware.setChargeAmps(8, cc);
+    });
+
+    it("keeps the expected amps while Tessie still has an older reading", async () => {
+      time.tick(TICK_MS);
+      const state = await middleware.requestState(ctx());
+      expect(adapter.fetches).toBe(2);
+      expect(state?.chargeAmps).toBe(8);
+    });
+
+    it("catches a change the car did not act on", async () => {
+      time.tick(TICK_MS);
+      report(14, Date.now());
+      const state = await middleware.requestState(ctx());
+      expect(state?.chargeAmps).toBe(14);
+    });
+
+    it("reads every tick until confirmed, then goes back to the cache", async () => {
+      time.tick(TICK_MS);
+      await middleware.requestState(ctx());
+      time.tick(TICK_MS);
+      report(8, Date.now());
+      await middleware.requestState(ctx());
+      time.tick(TICK_MS);
+      await middleware.requestState(ctx());
+      expect(adapter.fetches).toBe(3);
+      expect(middleware.getCachedState()?.chargeAmps).toBe(8);
+    });
+
+    it("takes the reading as it is once the wait runs out", async () => {
+      time.tick(COMMAND_CONFIRM_MS);
+      const state = await middleware.requestState(ctx());
+      expect(state?.chargeAmps).toBe(14);
+    });
+
+    it("waits for confirmation after a stop too", async () => {
+      adapter.state = { ...adapter.state, isCharging: true };
+      await middleware.stopCharging(cc);
+      time.tick(TICK_MS);
+      expect((await middleware.requestState(ctx()))?.isCharging).toBe(false);
       expect(adapter.fetches).toBe(2);
     });
   });

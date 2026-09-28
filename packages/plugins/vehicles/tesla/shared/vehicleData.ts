@@ -15,6 +15,8 @@ export interface TeslaChargeState {
   charge_energy_added?: number;
   minutes_to_full_charge?: number;
   charge_port_door_open?: boolean;
+  // When the car took this reading, in epoch ms.
+  timestamp?: number;
 }
 
 export interface TeslaVehicleState {
@@ -103,8 +105,19 @@ export function toAdapterChargeState(
     minutesToFull: charge.minutes_to_full_charge ?? 0,
     chargePortOpen: charge.charge_port_door_open ?? false,
     vehicleName: vehicle?.vehicle_name ?? "Tesla",
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: readingTime(charge.timestamp),
     latitude: drive?.latitude ?? null,
     longitude: drive?.longitude ?? null,
   };
+}
+
+// A cached reading (Tessie's, or a sleeping car's) can be hours old, so keep
+// the car's own time rather than stamping it with now. Never later than now:
+// a car clock running fast must not make a reading look newer than it is.
+function readingTime(timestampMs: number | undefined): string {
+  const now = Date.now();
+  const ms = typeof timestampMs === "number" && timestampMs > 0
+    ? Math.min(timestampMs, now)
+    : now;
+  return new Date(ms).toISOString();
 }
