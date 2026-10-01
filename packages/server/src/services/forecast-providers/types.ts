@@ -4,6 +4,11 @@ import type {
   SolarForecastSite,
 } from "@chargeha/shared/solarForecast";
 
+export interface ForecastProviderOptions {
+  // Address of a local provider (Home Assistant). Unused by cloud providers.
+  baseUrl?: string;
+}
+
 // A solar forecast source (e.g. Solcast). Stateless: the forecast service
 // owns scheduling, quota accounting and storage.
 export interface SolarForecastProvider {
@@ -11,9 +16,16 @@ export interface SolarForecastProvider {
   readonly displayName: string;
   // Sites on the account. Must not count against the daily quota — it is
   // called whenever the settings page tests a key.
-  listSites(apiKey: string): Promise<SolarForecastSite[]>;
+  listSites(
+    apiKey: string,
+    options?: ForecastProviderOptions,
+  ): Promise<SolarForecastSite[]>;
   // Forecast periods for one site, from now onwards. One quota request.
-  fetchForecast(apiKey: string, siteId: string): Promise<SolarForecastPeriod[]>;
+  fetchForecast(
+    apiKey: string,
+    siteId: string,
+    options?: ForecastProviderOptions,
+  ): Promise<SolarForecastPeriod[]>;
 }
 
 // The provider refused the key.

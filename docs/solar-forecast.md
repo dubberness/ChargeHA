@@ -29,6 +29,7 @@ changes what it does because of the forecast.
 | Provider                       | Plan                                                                |
 | ------------------------------ | ------------------------------------------------------------------- |
 | [Solcast](https://solcast.com) | Free hobbyist plan: up to 2 rooftop sites and 10 API requests a day |
+| Home Assistant                 | Reads the Solcast forecast Home Assistant already holds (below)     |
 
 Forecast providers sit behind one interface
 (`packages/server/src/services/forecast-providers/types.ts`), the same way
@@ -53,6 +54,27 @@ the database or the UI.
 
 The API key is stored in the database, encrypted at rest **only if
 `ENCRYPTION_KEY` is set**, and is never sent back to the browser.
+
+## Setup (Solcast through Home Assistant)
+
+If Home Assistant already runs the
+[Solcast PV Forecast](https://github.com/BJReplay/ha-solcast-solar) integration,
+ChargeHA can read the forecast from it. Home Assistant is then the only thing
+calling Solcast, so the account's daily requests are not split between the two.
+
+1. In Home Assistant, open your profile → **Security** and create a **long-lived
+   access token**.
+2. In ChargeHA, open **Settings → Solar Forecast** and choose **Home Assistant
+   (Solcast integration)**.
+3. Enter Home Assistant's address (for example
+   `http://homeassistant.local:8123`), paste the token and press **Test**. The
+   test checks the address, the token and that the integration is there.
+4. **Save.** The first forecast arrives within a minute.
+
+ChargeHA reads the integration's combined forecast for all its sites, about
+every half hour of daylight. There is no request limit to set, and **Update
+now** is always available. How fresh the forecast is depends on how often the
+integration itself updates. The token is stored the same way as a Solcast key.
 
 ## Staying inside the daily limit
 

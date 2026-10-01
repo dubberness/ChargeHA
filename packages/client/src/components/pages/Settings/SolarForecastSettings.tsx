@@ -14,6 +14,7 @@ import {
   FORECAST_PROVIDERS,
   type ForecastCorrection,
   type ForecastProviderId,
+  isLocalForecastProvider,
   type PanelCheck,
   type SolarForecastSite,
   type SolarForecastStatus,
@@ -34,6 +35,7 @@ const NONE = "__none__";
 
 interface Draft {
   provider: ForecastProviderId | "";
+  baseUrl: string;
   siteIds: string;
   dailyLimit: string;
   adjust: boolean;
@@ -44,6 +46,7 @@ interface Draft {
 
 const draftFrom = (status: SolarForecastStatus): Draft => ({
   provider: status.provider ?? "",
+  baseUrl: status.baseUrl,
   siteIds: status.siteIds.join(", "),
   dailyLimit: String(status.dailyLimit),
   adjust: status.adjust,
@@ -54,6 +57,7 @@ const draftFrom = (status: SolarForecastStatus): Draft => ({
 const isDirty = (draft: Draft, status: SolarForecastStatus): boolean => {
   const saved = draftFrom(status);
   return draft.provider !== saved.provider ||
+    draft.baseUrl.trim() !== saved.baseUrl ||
     draft.siteIds.trim() !== saved.siteIds ||
     draft.dailyLimit !== saved.dailyLimit ||
     draft.adjust !== saved.adjust ||
@@ -74,7 +78,8 @@ export function formatClock(iso: string): string {
   });
 }
 
-// "Updated 12m ago · next at 2:30 pm · 3 of 10 requests used today"
+// "Updated 12m ago · next at 2:30 pm · 3 of 10 requests used today". A local
+// provider has no requests to count.
 export function statusLine(
   status: SolarForecastStatus,
   nowMs = Date.now(),
@@ -86,7 +91,9 @@ export function statusLine(
     status.nextFetchAt && Date.parse(status.nextFetchAt) > nowMs
       ? `next at ${formatClock(status.nextFetchAt)}`
       : null,
-    `${status.usedToday} of ${status.dailyLimit} requests used today`,
+    isLocalForecastProvider(status.provider)
+      ? null
+      : `${status.usedToday} of ${status.dailyLimit} requests used today`,
   ];
   return parts.filter(Boolean).join(" · ");
 }
@@ -211,21 +218,24 @@ function SummaryRow(
 }
 
 function ApiKeyEditor(
-  { provider, value, onChange }: {
+  { provider, baseUrl, value, onChange }: {
     provider: ForecastProviderId;
+    baseUrl: string;
     value: string;
     onChange: (v: string) => void;
   },
 ) {
   const test = trpc.forecast.testKey.useMutation();
   const result = test.data;
+  const local = isLocalForecastProvider(provider);
+  const testLabel = local ? "Test" : "Test Key";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", gap: 8 }}>
         <TextField.Root
           type="password"
-          aria-label="Solcast API key"
-          placeholder="Paste your API key"
+          aria-label={local ? "Home Assistant access token" : "Solcast API key"}
+          placeholder={local ? "Paste the access token" : "Paste your API key"}
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
@@ -237,13 +247,20 @@ function ApiKeyEditor(
           size="2"
           variant="soft"
           disabled={!value.trim() || test.isPending}
-          onClick={() => test.mutate({ apiKey: value.trim(), provider })}
+          onClick={() =>
+            test.mutate({
+              apiKey: value.trim(),
+              provider,
+              ...(local ? { baseUrl: baseUrl.trim() } : {}),
+            })}
         >
-          {test.isPending ? "Testing…" : "Test Key"}
+          {test.isPending ? "Testing…" : testLabel}
         </Button>
       </div>
       <Text size="1" color="gray">
-        Testing lists your sites and does not use a request.
+        {local
+          ? "Testing checks the address, the token and that the Solcast integration is there."
+          : "Testing lists your sites and does not use a request."}
       </Text>
       {result?.success && (
         <Text size="1" color="green">
@@ -265,7 +282,8 @@ function ForecastStatusBlock({ status }: { status: SolarForecastStatus }) {
       utils.stats.invalidate();
     },
   });
-  const outOfRequests = status.usedToday >= status.dailyLimit;
+  const outOfRequests = !isLocalForecastProvider(status.provider) &&
+    status.usedToday >= status.dailyLimit;
   const error = refresh.data?.success === false
     ? refresh.data.error
     : status.lastError;
@@ -287,6 +305,27 @@ function ForecastStatusBlock({ status }: { status: SolarForecastStatus }) {
   );
 }
 
+// Where the forecast comes from, under the key.
+function ProviderHint({ local }: { local: boolean }) {
+  if (local) {
+    return (
+      <Text size="1" color="gray">
+        Reads the forecast from the Solcast PV Forecast integration in Home
+        Assistant, so only Home Assistant spends your Solcast requests.
+      </Text>
+    );
+  }
+  return (
+    <Text size="1" color="gray">
+      No account? Sign up free at{" "}
+      <a href={SOLCAST_SIGNUP_URL} target="_blank" rel="noreferrer">
+        solcast.com
+      </a>{" "}
+      as a home user, add your rooftop, then copy the API key.
+    </Text>
+  );
+}
+
 type UpdateDraft = (patch: Partial<Draft>) => void;
 
 function ApiKeyRows(
@@ -298,11 +337,28 @@ function ApiKeyRows(
   },
 ) {
   const editingKey = draft.apiKey !== null || !status.apiKeySet;
+  const local = isLocalForecastProvider(provider);
   return (
     <>
+      {local && (
+        <SettingsRow
+          label="Home Assistant address"
+          help="Where ChargeHA can reach Home Assistant, e.g. http://homeassistant.local:8123."
+        >
+          <TextField.Root
+            aria-label="Home Assistant address"
+            placeholder="http://homeassistant.local:8123"
+            value={draft.baseUrl}
+            onChange={(e) => update({ baseUrl: e.target.value })}
+            style={{ width: 260 }}
+          />
+        </SettingsRow>
+      )}
       <SettingsRow
-        label="API key"
-        help="Your Solcast account → API Key. Stored encrypted when ENCRYPTION_KEY is set."
+        label={local ? "Access token" : "API key"}
+        help={local
+          ? "A long-lived access token: your Home Assistant profile → Security. Stored encrypted when ENCRYPTION_KEY is set."
+          : "Your Solcast account → API Key. Stored encrypted when ENCRYPTION_KEY is set."}
       >
         {status.apiKeySet && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -323,17 +379,53 @@ function ApiKeyRows(
       {editingKey && (
         <ApiKeyEditor
           provider={provider}
+          baseUrl={draft.baseUrl}
           value={draft.apiKey ?? ""}
           onChange={(apiKey) => update({ apiKey })}
         />
       )}
-      <Text size="1" color="gray">
-        No account? Sign up free at{" "}
-        <a href={SOLCAST_SIGNUP_URL} target="_blank" rel="noreferrer">
-          solcast.com
-        </a>{" "}
-        as a home user, add your rooftop, then copy the API key.
-      </Text>
+      <ProviderHint local={local} />
+    </>
+  );
+}
+
+// Which sites to forecast and how many requests a day the account allows.
+function QuotaRows(
+  { draft, update, limitValid }: {
+    draft: Draft;
+    update: UpdateDraft;
+    limitValid: boolean;
+  },
+) {
+  return (
+    <>
+      <SettingsRow
+        label="Site IDs"
+        help="Leave blank to forecast every site on the account. East/west arrays set up as two sites are added together."
+      >
+        <TextField.Root
+          aria-label="Site IDs"
+          placeholder="All sites"
+          value={draft.siteIds}
+          onChange={(e) => update({ siteIds: e.target.value })}
+          style={{ width: 220 }}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label="Daily request limit"
+        help="10 on Solcast's free plan (older accounts may have 50). Updates are spread across daylight, one request per site, with one kept back for Update now."
+      >
+        <NumberInput
+          value={draft.dailyLimit}
+          onChange={(dailyLimit) => update({ dailyLimit })}
+          suffix="/ day"
+          min={1}
+        />
+      </SettingsRow>
+      {!limitValid && (
+        <FormError message="Enter a whole number of requests, 1 or more." />
+      )}
     </>
   );
 }
@@ -383,10 +475,12 @@ export function SolarForecastSettings() {
   const update: UpdateDraft = (patch) => setDraft({ ...draft, ...patch });
   const limit = Number(draft.dailyLimit);
   const limitValid = Number.isInteger(limit) && limit >= 1;
+  const local = isLocalForecastProvider(draft.provider);
   const onSave = () => {
     if (!limitValid) return;
     save.mutate({
       forecastProvider: draft.provider,
+      ...(local ? { forecastBaseUrl: draft.baseUrl.trim() } : {}),
       forecastSiteIds: draft.siteIds.trim(),
       forecastDailyLimit: limit,
       forecastAdjust: draft.adjust,
@@ -400,7 +494,7 @@ export function SolarForecastSettings() {
     <SettingsSection
       icon={<CloudSun size={16} />}
       title="Solar Forecast"
-      description="Forecast your solar production and compare it with what your system actually made. Solcast's free hobbyist plan works."
+      description="Forecast your solar production and compare it with what your system actually made. Solcast's free hobbyist plan works, directly or through Home Assistant."
       saveStatus={saveStatus}
       isDirty={isDirty(draft, status)}
       onSave={onSave}
@@ -432,32 +526,8 @@ export function SolarForecastSettings() {
             update={update}
           />
 
-          <SettingsRow
-            label="Site IDs"
-            help="Leave blank to forecast every site on the account. East/west arrays set up as two sites are added together."
-          >
-            <TextField.Root
-              aria-label="Site IDs"
-              placeholder="All sites"
-              value={draft.siteIds}
-              onChange={(e) => update({ siteIds: e.target.value })}
-              style={{ width: 220 }}
-            />
-          </SettingsRow>
-
-          <SettingsRow
-            label="Daily request limit"
-            help="10 on Solcast's free plan (older accounts may have 50). Updates are spread across daylight, one request per site, with one kept back for Update now."
-          >
-            <NumberInput
-              value={draft.dailyLimit}
-              onChange={(dailyLimit) => update({ dailyLimit })}
-              suffix="/ day"
-              min={1}
-            />
-          </SettingsRow>
-          {!limitValid && (
-            <FormError message="Enter a whole number of requests, 1 or more." />
+          {!local && (
+            <QuotaRows draft={draft} update={update} limitValid={limitValid} />
           )}
 
           {configured && (

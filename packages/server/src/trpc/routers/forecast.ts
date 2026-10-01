@@ -5,6 +5,8 @@ import { publicProcedure, router } from "../trpc.ts";
 
 const settingsInput = z.object({
   forecastProvider: forecastConfigDef.forecastProvider.schema.optional(),
+  forecastBaseUrl: forecastConfigDef.forecastBaseUrl.schema.max(500)
+    .optional(),
   forecastSiteIds: forecastConfigDef.forecastSiteIds.schema.max(500)
     .optional(),
   forecastDailyLimit: forecastConfigDef.forecastDailyLimit.schema.optional(),
@@ -31,9 +33,10 @@ export const forecastRouter = router({
     .input(z.object({
       apiKey: z.string().max(500).optional(),
       provider: z.enum(FORECAST_PROVIDERS).optional(),
+      baseUrl: z.string().max(500).optional(),
     }))
     .mutation(({ ctx, input }) =>
-      ctx.forecastService.testKey(input.apiKey, input.provider)
+      ctx.forecastService.testKey(input.apiKey, input.provider, input.baseUrl)
     ),
 
   // What solar should add to each plugged-in car before sunset.
