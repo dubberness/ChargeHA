@@ -14,6 +14,7 @@ import {
   sumSites,
 } from "./SolarForecastService.ts";
 import {
+  type ForecastProviderOptions,
   ForecastQuotaError,
   type SolarForecastProvider,
 } from "./forecast-providers/types.ts";
@@ -33,6 +34,26 @@ class FakeProvider implements SolarForecastProvider {
     this.fetched.push(siteId);
     if (this.failWith) return Promise.reject(this.failWith);
     return Promise.resolve(this.forecasts[siteId] ?? []);
+  }
+}
+
+// A local provider (Home Assistant): one combined forecast at an address.
+class FakeLocalProvider implements SolarForecastProvider {
+  readonly id = "homeassistant" as const;
+  readonly displayName = "Home Assistant";
+  seen: Array<ForecastProviderOptions | undefined> = [];
+  constructor(public periods: SolarForecastPeriod[]) {}
+  listSites(_token: string, options?: ForecastProviderOptions) {
+    this.seen.push(options);
+    return Promise.resolve([{ id: "all", name: "HA", capacityKw: null }]);
+  }
+  fetchForecast(
+    _token: string,
+    _siteId: string,
+    options?: ForecastProviderOptions,
+  ) {
+    this.seen.push(options);
+    return Promise.resolve(this.periods);
   }
 }
 
@@ -253,6 +274,72 @@ describe("SolarForecastService", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("No sites");
+    });
+  });
+
+  describe("local provider", () => {
+    const setupLocal = async () => {
+      const provider = new FakeLocalProvider([
+        period("2026-09-28T02:00:00.000Z", 1000),
+        period("2026-09-28T02:30:00.000Z", 1200),
+      ]);
+      const service = new SolarForecastService(
+        db,
+        [provider],
+        new Logger("test", "error"),
+        () => nowMs,
+      );
+      await service.saveSettings({
+        forecastProvider: "homeassistant",
+        forecastBaseUrl: "http://ha.local:8123",
+        forecastSiteIds: "left-over-site",
+        forecastDailyLimit: 1,
+        apiKey: "token",
+      });
+      return { service, provider };
+    };
+
+    it("passes the address on and reports it in the status", async () => {
+      const { service, provider } = await setupLocal();
+
+      expect(await service.refresh()).toEqual({ success: true });
+      expect(provider.seen.every((o) => o?.baseUrl === "http://ha.local:8123"))
+        .toBe(true);
+      expect((await service.getStatus()).baseUrl).toBe("http://ha.local:8123");
+    });
+
+    it("spends no quota however often it is read", async () => {
+      const { service } = await setupLocal();
+
+      expect((await service.refresh()).success).toBe(true);
+      expect((await service.refresh()).success).toBe(true);
+      expect((await service.getStatus()).usedToday).toBe(0);
+    });
+
+    it("reads again about every half hour of daylight", async () => {
+      const { service } = await setupLocal();
+      await service.refresh();
+
+      const next = Date.parse((await service.getStatus()).nextFetchAt ?? "");
+      expect(next).toBeGreaterThan(nowMs);
+      expect(next - nowMs).toBeLessThanOrEqual(3_600_000);
+    });
+
+    it("tests the address being typed, before it is saved", async () => {
+      const { service, provider } = await setupLocal();
+
+      await service.testKey("token", "homeassistant", "http://other:8123");
+
+      expect(provider.seen.at(-1)).toEqual({ baseUrl: "http://other:8123" });
+    });
+
+    it("fetches straight away after the address changes", async () => {
+      const { service } = await setupLocal();
+      await service.refresh();
+
+      await service.saveSettings({ forecastBaseUrl: "http://other:8123" });
+
+      expect((await service.getStatus()).lastFetchAt).toBeNull();
     });
   });
 

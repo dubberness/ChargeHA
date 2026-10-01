@@ -13,6 +13,7 @@ import {
   bucketForecastWh,
   effectiveForecastW,
   type ForecastProviderId,
+  isLocalForecastProvider,
   localMidnightUtcMs,
   periodEndMs,
   type SolarForecastDay,
@@ -42,6 +43,9 @@ const BUCKET_MS = 15 * 60_000;
 // How far back the scheduler looks for today's daylight.
 const LOOKBACK_MS = DAY_MS;
 const DEFAULT_RETENTION_DAYS = 730;
+// A local provider has no quota. Plan as if it allowed this many requests
+// a day, which reads it about every half hour of daylight.
+const LOCAL_DAILY_FETCHES = 25;
 
 export interface ForecastSettingsInput extends Partial<ForecastConfig> {
   // undefined leaves the stored key alone; "" removes it.
@@ -166,10 +170,15 @@ export class SolarForecastService {
     if (apiKey !== undefined) {
       await this.db.storeSecret(FORECAST_API_KEY, apiKey.trim() || null);
     }
-    const changed = (key: "forecastProvider" | "forecastSiteIds") =>
-      config[key] !== undefined && config[key] !== before[key];
-    const sourceChanged = apiKey !== undefined ||
-      changed("forecastProvider") || changed("forecastSiteIds");
+    const sourceKeys = [
+      "forecastProvider",
+      "forecastSiteIds",
+      "forecastBaseUrl",
+    ] as const;
+    const settingChanged = sourceKeys.some((key) =>
+      config[key] !== undefined && config[key] !== before[key]
+    );
+    const sourceChanged = apiKey !== undefined || settingChanged;
     if (sourceChanged) {
       // A new key or site list: the next tick forecasts as soon as the
       // quota allows, and the old settings' error no longer applies.
@@ -180,10 +189,11 @@ export class SolarForecastService {
 
   // Lists the account's sites with a key before it is saved. Free — listing
   // sites does not count against the quota. `providerId` is the one being
-  // chosen, which may not be saved yet.
+  // chosen, and `baseUrl` its address, which may not be saved yet.
   async testKey(
     apiKey?: string,
     providerId?: ForecastProviderId,
+    baseUrl?: string,
   ): Promise<ForecastTestResult> {
     try {
       const provider = providerId
@@ -192,7 +202,9 @@ export class SolarForecastService {
       const key = apiKey?.trim() || await this.db.readSecret(FORECAST_API_KEY);
       if (!provider) return { success: false, error: "Choose a provider" };
       if (!key) return { success: false, error: "Enter an API key" };
-      const sites = await provider.listSites(key);
+      const sites = await provider.listSites(key, {
+        baseUrl: baseUrl ?? (await this.getConfig()).forecastBaseUrl,
+      });
       if (sites.length === 0) {
         return {
           success: false,
@@ -215,12 +227,14 @@ export class SolarForecastService {
       this.nextFetchMs(),
       readLearningState(this.db),
     ]);
+    const local = isLocalForecastProvider(config.forecastProvider);
     return {
       provider: config.forecastProvider || null,
+      baseUrl: config.forecastBaseUrl,
       apiKeySet: !!apiKey,
       siteIds: parseSiteIds(config.forecastSiteIds),
       dailyLimit: config.forecastDailyLimit,
-      usedToday: this.usageToday(state.usage),
+      usedToday: local ? 0 : this.usageToday(state.usage),
       lastFetchAt: state.lastFetchAt,
       lastError: state.lastError,
       nextFetchAt: next === null ? null : new Date(next).toISOString(),
@@ -254,11 +268,14 @@ export class SolarForecastService {
     await this.setState({
       forecastLastAttemptAt: new Date(startedMs).toISOString(),
     });
+    // A local provider has one combined forecast and no quota to count.
+    const local = isLocalForecastProvider(provider.id);
+    const options = { baseUrl: config.forecastBaseUrl };
     try {
-      const configured = parseSiteIds(config.forecastSiteIds);
+      const configured = local ? [] : parseSiteIds(config.forecastSiteIds);
       const siteIds = configured.length > 0
         ? configured
-        : (await provider.listSites(apiKey)).map((s) => s.id);
+        : (await provider.listSites(apiKey, options)).map((s) => s.id);
       if (siteIds.length === 0) {
         throw new Error(
           `No sites on this ${provider.displayName} account — add one on their website first`,
@@ -266,15 +283,15 @@ export class SolarForecastService {
       }
       this.knownSiteCount = siteIds.length;
       const used = this.usageToday((await this.getState()).usage);
-      if (used + siteIds.length > config.forecastDailyLimit) {
+      if (!local && used + siteIds.length > config.forecastDailyLimit) {
         throw new ForecastQuotaError(
           `Today's ${config.forecastDailyLimit} requests are used — updates resume after midnight UTC`,
         );
       }
       const perSite: SolarForecastPeriod[][] = [];
       await inSequence(siteIds, async (siteId) => {
-        perSite.push(await provider.fetchForecast(apiKey, siteId));
-        await this.countRequest(config.forecastDailyLimit);
+        perSite.push(await provider.fetchForecast(apiKey, siteId, options));
+        if (!local) await this.countRequest(config.forecastDailyLimit);
       });
       await this.store(sumSites(perSite), new Date(startedMs));
       await this.setState({
@@ -332,15 +349,16 @@ export class SolarForecastService {
       new Date(nowMs - LOOKBACK_MS).toISOString(),
       new Date(nowMs + 8 * DAY_MS).toISOString(),
     );
+    const local = isLocalForecastProvider(provider.id);
     const configured = parseSiteIds(config.forecastSiteIds).length;
     return planNextFetch({
       nowMs,
       lastFetchMs: parseTime(state.lastFetchAt),
       lastAttemptMs: parseTime(state.lastAttemptAt),
       lastAttemptFailed: state.lastError !== null,
-      usedToday: this.usageToday(state.usage),
-      dailyLimit: config.forecastDailyLimit,
-      siteCount: configured || this.knownSiteCount || 1,
+      usedToday: local ? 0 : this.usageToday(state.usage),
+      dailyLimit: local ? LOCAL_DAILY_FETCHES : config.forecastDailyLimit,
+      siteCount: local ? 1 : configured || this.knownSiteCount || 1,
       runs: daylightRuns(periods),
     });
   }

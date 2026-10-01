@@ -11,6 +11,7 @@ export const miscHandlers: Record<string, QueryHandler> = {
   // No forecast provider in demo — the dashboard card and stats line hide.
   "forecast.status": () => ({
     provider: null,
+    baseUrl: "",
     apiKeySet: false,
     siteIds: [],
     dailyLimit: 10,

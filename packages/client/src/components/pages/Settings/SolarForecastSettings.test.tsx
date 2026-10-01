@@ -96,6 +96,7 @@ describe("SolarForecastSettings", () => {
     overrides: Partial<SolarForecastStatus> = {},
   ): SolarForecastStatus => ({
     provider: "solcast",
+    baseUrl: "",
     apiKeySet: true,
     siteIds: [],
     dailyLimit: 10,
@@ -212,6 +213,77 @@ describe("SolarForecastSettings", () => {
       forecastDailyLimit: 50,
       forecastAdjust: true,
       forecastSummaryTime: "20:00",
+    });
+  });
+
+  describe("Home Assistant", () => {
+    const haStatus = (overrides: Partial<SolarForecastStatus> = {}) =>
+      status({
+        provider: "homeassistant",
+        baseUrl: "http://ha.local:8123",
+        ...overrides,
+      });
+
+    it("asks for an address and token instead of sites and a limit", () => {
+      withStatus(haStatus({ apiKeySet: false }));
+      renderWithProviders(<SolarForecastSettings />);
+
+      expect(screen.getByLabelText("Home Assistant address")).toHaveValue(
+        "http://ha.local:8123",
+      );
+      expect(screen.getByLabelText("Home Assistant access token"))
+        .toBeInTheDocument();
+      expect(screen.queryByLabelText("Site IDs")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Daily request limit")).not
+        .toBeInTheDocument();
+    });
+
+    it("tests the typed address with the token", () => {
+      withStatus(haStatus({ apiKeySet: false, baseUrl: "" }));
+      renderWithProviders(<SolarForecastSettings />);
+
+      fireEvent.change(screen.getByLabelText("Home Assistant address"), {
+        target: { value: " http://10.0.0.5:8123 " },
+      });
+      fireEvent.change(screen.getByLabelText("Home Assistant access token"), {
+        target: { value: "tok" },
+      });
+      fireEvent.click(screen.getByText("Test"));
+
+      expect(h.testMutate).toHaveBeenCalledWith({
+        apiKey: "tok",
+        provider: "homeassistant",
+        baseUrl: "http://10.0.0.5:8123",
+      });
+    });
+
+    it("saves the address", () => {
+      withStatus(haStatus());
+      renderWithProviders(<SolarForecastSettings />);
+
+      fireEvent.change(screen.getByLabelText("Home Assistant address"), {
+        target: { value: "http://10.0.0.5:8123/" },
+      });
+      fireEvent.click(screen.getByText("Save"));
+
+      expect(h.saveMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          forecastProvider: "homeassistant",
+          forecastBaseUrl: "http://10.0.0.5:8123/",
+        }),
+      );
+    });
+
+    it("leaves the request count out of the status line", () => {
+      expect(statusLine(haStatus({ usedToday: 0 }))).toBe("Not updated yet");
+    });
+
+    it("keeps Update now available whatever the stored limit", () => {
+      withStatus(haStatus({ dailyLimit: 1, usedToday: 0 }));
+      renderWithProviders(<SolarForecastSettings />);
+
+      expect(screen.getByText("Update now").closest("button")).not
+        .toBeDisabled();
     });
   });
 

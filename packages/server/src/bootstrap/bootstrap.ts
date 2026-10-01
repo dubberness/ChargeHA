@@ -22,6 +22,7 @@ import { VehicleService } from "../services/VehicleService.ts";
 import { TariffService } from "../services/TariffService.ts";
 import { StatsService } from "../services/StatsService.ts";
 import { SolarForecastService } from "../services/SolarForecastService.ts";
+import { HomeAssistantProvider } from "../services/forecast-providers/HomeAssistantProvider.ts";
 import { SolcastProvider } from "../services/forecast-providers/SolcastProvider.ts";
 import { ForecastLearner } from "../services/ForecastLearner.ts";
 import { SolarChargePlanner } from "../services/SolarChargePlanner.ts";
@@ -111,7 +112,7 @@ function buildAuxServices(
   const statsService = new StatsService(db);
   const forecastService = new SolarForecastService(
     db,
-    [new SolcastProvider()],
+    [new SolcastProvider(), new HomeAssistantProvider()],
     new Logger("SolarForecast", logLevel),
     undefined,
     new ForecastLearner(

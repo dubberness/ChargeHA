@@ -219,8 +219,14 @@ export const forecastConfigDef = defineSection({
   forecastProvider: {
     key: "forecast_provider",
     // "" = no forecast provider.
-    schema: z.enum(["", "solcast"]),
+    schema: z.enum(["", "solcast", "homeassistant"]),
     default: "" as const,
+  },
+  // Where a local provider lives, e.g. "http://homeassistant.local:8123".
+  forecastBaseUrl: {
+    key: "forecast_base_url",
+    schema: z.string(),
+    default: "",
   },
   // Comma-separated provider site ids. Empty = every site on the account.
   forecastSiteIds: {

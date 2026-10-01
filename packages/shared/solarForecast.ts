@@ -1,12 +1,24 @@
 // Solar production forecasts from an external provider (e.g. Solcast).
 // Shared so the server, the client and the demo fixtures agree on shapes.
 
-export const FORECAST_PROVIDERS = ["solcast"] as const;
+export const FORECAST_PROVIDERS = ["solcast", "homeassistant"] as const;
 export type ForecastProviderId = typeof FORECAST_PROVIDERS[number];
 
 export const FORECAST_PROVIDER_NAMES: Record<ForecastProviderId, string> = {
   solcast: "Solcast",
+  homeassistant: "Home Assistant (Solcast integration)",
 };
+
+// Providers that hand over a forecast something else already fetched. They
+// are reached at an address on the local network, and reading them costs
+// nothing, so there is no daily quota to ration.
+export const LOCAL_FORECAST_PROVIDERS: readonly ForecastProviderId[] = [
+  "homeassistant",
+];
+
+export const isLocalForecastProvider = (
+  id: ForecastProviderId | "" | null,
+): boolean => !!id && LOCAL_FORECAST_PROVIDERS.includes(id);
 
 // One forecast period. Power is the average over the period, in watts.
 // pvW10/pvW90 are the 10th/90th percentile — a cloudy and a clear outcome.
@@ -54,6 +66,8 @@ export interface PanelCheck {
 
 export interface SolarForecastStatus {
   provider: ForecastProviderId | null;
+  // Address of a local provider (Home Assistant). Empty for the others.
+  baseUrl: string;
   apiKeySet: boolean;
   // Sites to forecast. Empty means every site on the account.
   siteIds: string[];
