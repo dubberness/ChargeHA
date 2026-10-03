@@ -97,6 +97,8 @@ describe("SolarForecastCard", () => {
     expect(screen.getByText("20.0 kWh")).toBeInTheDocument();
     expect(screen.getByText("Likely 10.0–24.0 kWh")).toBeInTheDocument();
     expect(screen.getByText("-10% vs forecast so far")).toBeInTheDocument();
+    expect(screen.getByText("produced so far")).toBeInTheDocument();
+    expect(screen.getByText("Still to Come")).toBeInTheDocument();
     expect(screen.getByText("Forecast Tomorrow")).toBeInTheDocument();
     expect(screen.getByLabelText("Daily forecast")).toHaveTextContent("Today");
     expect(screen.getByText("Forecast updated 12m ago")).toBeInTheDocument();

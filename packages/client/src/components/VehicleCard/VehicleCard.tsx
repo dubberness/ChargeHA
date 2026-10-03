@@ -18,6 +18,7 @@ import { StaticMap } from "../StaticMap/StaticMap.tsx";
 import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
 import {
+  ChargeControls,
   PairedChargeDetails,
   VehicleCardDetails,
 } from "./VehicleCardDetails.tsx";
@@ -321,21 +322,28 @@ function SolarProjectionLine(
   return (
     <div className={styles.projection}>
       <Sun size={14} />
-      <Text size="1" color="gray">{solarProjectionText(projection)}</Text>
+      <Text size="2">{solarProjectionText(projection)}</Text>
     </div>
   );
 }
 
+// The card's headline: where the battery is and where solar should leave it.
 function VehicleBatterySection(
-  { batteryPercent, chargeLimitPercent, isCharging, projectedPercent }: {
+  { batteryPercent, chargeLimitPercent, isCharging, projection }: {
     batteryPercent: number;
     chargeLimitPercent: number;
     isCharging: boolean;
-    projectedPercent: number | null;
+    projection: SolarChargeProjection | null;
   },
 ) {
+  const projectedPercent = projection?.expectedPct ?? null;
   return (
     <div className={styles.batterySection}>
+      <div className={styles.batteryHeadline}>
+        <span className={styles.batteryPercent}>{batteryPercent}%</span>
+        <Text size="1" color="gray">Limit: {chargeLimitPercent}%</Text>
+      </div>
+      {projection && <SolarProjectionLine projection={projection} />}
       <div className={styles.batteryBar}>
         {projectedPercent !== null && projectedPercent > batteryPercent && (
           <div
@@ -358,10 +366,57 @@ function VehicleBatterySection(
           style={{ left: `${chargeLimitPercent}%` }}
         />
       </div>
-      <div className={styles.batteryLabels}>
-        <Text size="2" weight="bold">{batteryPercent}%</Text>
-        <Text size="1" color="gray">Limit: {chargeLimitPercent}%</Text>
-      </div>
+    </div>
+  );
+}
+
+// Every control in one place; the map thumbnail sits in its corner.
+function VehicleCardFooter(
+  {
+    readOnly,
+    hasMap,
+    mode,
+    state,
+    disabled,
+    commandPending,
+    onChangeMode,
+    onStartCharging,
+    onStopCharging,
+    onSetAmps,
+  }: {
+    readOnly: boolean;
+    hasMap: boolean;
+    mode: VehicleMode;
+    state: VehicleChargeState;
+    disabled: boolean;
+    commandPending: string | false;
+    onChangeMode: (mode: VehicleMode) => void;
+    onStartCharging: () => void;
+    onStopCharging: () => void;
+    onSetAmps: (amps: number) => void;
+  },
+) {
+  return (
+    <div className={`${styles.footer} ${hasMap ? styles.footerMap : ""}`}>
+      {!readOnly && (
+        <VehicleModeToggle
+          mode={mode}
+          disabled={disabled}
+          isPluggedIn={state.isPluggedIn}
+          pending={commandPending || ""}
+          onChangeMode={onChangeMode}
+        />
+      )}
+      {!readOnly && state.isPluggedIn && (
+        <ChargeControls
+          state={state}
+          disabled={disabled}
+          commandPending={commandPending}
+          onStartCharging={onStartCharging}
+          onStopCharging={onStopCharging}
+          onSetAmps={onSetAmps}
+        />
+      )}
     </div>
   );
 }
@@ -413,7 +468,6 @@ export function VehicleCard({
 
   const batteryPercent = Math.round(state.batteryLevel);
   const chargeLimitPercent = Math.round(state.chargeLimit);
-  const pending = commandPending || "";
   const disabled = !!commandPending || commandsDisabled;
   const lastUpdatedText = state.lastUpdated
     ? formatRelativeTime(new Date(state.lastUpdated))
@@ -440,22 +494,12 @@ export function VehicleCard({
         pollingSuspended={pollingSuspended}
         pollingSuspendReason={pollingSuspendReason}
       />
-      {!readOnly && (
-        <VehicleModeToggle
-          mode={mode}
-          disabled={disabled}
-          isPluggedIn={state.isPluggedIn}
-          pending={pending}
-          onChangeMode={onChangeMode}
-        />
-      )}
       <VehicleBatterySection
         batteryPercent={batteryPercent}
         chargeLimitPercent={chargeLimitPercent}
         isCharging={state.isCharging}
-        projectedPercent={solarProjection?.expectedPct ?? null}
+        projection={solarProjection}
       />
-      {solarProjection && <SolarProjectionLine projection={solarProjection} />}
 
       {/* Status */}
       <div className={layout.status}>
@@ -463,27 +507,32 @@ export function VehicleCard({
         <Text size="2">{getStatusText(state, mode, atHome)}</Text>
       </div>
 
-      {/* Spacer when unplugged so the card has room for the map below. */}
-      {!state.isPluggedIn && <div style={{ height: 20 }} />}
-
       {state.isPluggedIn && (
         <ChargeDetailsSection
           readOnly={readOnly}
           chargeLimitPercent={chargeLimitPercent}
-          disabled={disabled}
           state={state}
           allocationStatus={allocationStatus ?? null}
           controllerReason={controllerReason ?? null}
           controllerDetail={controllerDetail ?? null}
           chargerStatus={chargerStatus ?? null}
-          commandPending={commandPending}
-          onStartCharging={onStartCharging}
-          onStopCharging={onStopCharging}
-          onSetAmps={onSetAmps}
           solarPowerW={solarPowerW}
           gridPowerW={gridPowerW}
         />
       )}
+
+      <VehicleCardFooter
+        readOnly={readOnly}
+        hasMap={!!lastLocation}
+        mode={mode}
+        state={state}
+        disabled={disabled}
+        commandPending={commandPending}
+        onChangeMode={onChangeMode}
+        onStartCharging={onStartCharging}
+        onStopCharging={onStopCharging}
+        onSetAmps={onSetAmps}
+      />
 
       {/* Location map — small thumbnail, reveals more map on hover */}
       {lastLocation && (

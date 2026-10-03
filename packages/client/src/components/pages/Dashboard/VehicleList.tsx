@@ -523,14 +523,6 @@ export function VehicleList(
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <Text
-        size="1"
-        color="gray"
-        weight="medium"
-        style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}
-      >
-        Charging
-      </Text>
       <ChargingPointCards
         points={points}
         vehicles={vehicles}

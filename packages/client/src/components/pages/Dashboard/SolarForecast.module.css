@@ -137,3 +137,83 @@
   background: var(--color-solar-forecast);
   opacity: 0.3;
 }
+
+/* Today's headline: production so far against the forecast */
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.summaryHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.produced {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.produced svg {
+  align-self: center;
+}
+
+.progress {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--gray-a3);
+  overflow: hidden;
+}
+
+.progressRange {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-solar-forecast);
+  opacity: 0.2;
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 5px;
+  background: var(--color-solar);
+}
+
+.progressMark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-solar-forecast);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.factLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-solar-forecast);
+}

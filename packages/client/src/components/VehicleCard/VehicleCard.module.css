@@ -52,20 +52,34 @@
   margin-bottom: 12px;
 }
 
+.batteryHeadline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.batteryPercent {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
 .batteryBar {
   position: relative;
-  height: 20px;
+  height: 14px;
   background: var(--gray-a3);
-  border-radius: 4px;
+  border-radius: 7px;
   overflow: hidden;
-  margin-bottom: 4px;
 }
 
 /* Where solar should take the battery by the end of the day. */
 .projectedFill {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 4px;
+  border-radius: 7px;
   background: var(--color-solar);
   opacity: 0.3;
 }
@@ -74,14 +88,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -4px 0 10px;
+  margin-bottom: 6px;
   color: var(--color-solar);
 }
 
 .batteryFill {
   position: relative;
   height: 100%;
-  border-radius: 4px;
+  border-radius: 7px;
   transition: width 0.5s ease;
 }
 
@@ -93,26 +107,51 @@
   background: var(--gray-a8);
 }
 
-.batteryLabels {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* The session's numbers as a row of small tiles. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
-.controls {
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--gray-a2);
+}
+
+.footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.buttonRow {
+/* Keeps the controls clear of the map thumbnail in the corner, and gives a
+   card with no controls the height to hold it. */
+.footerMap {
+  min-height: 48px;
+  padding-right: 92px;
+}
+
+.controls {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
 }
 
 .ampsControl {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
+}
+
+/* The shared toggle carries its own bottom margin; the footer's gap does
+   that job here. */
+.footer > div {
+  margin-bottom: 0;
 }
