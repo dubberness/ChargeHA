@@ -187,7 +187,8 @@ describe("VehicleCard", () => {
         energyAddedKwh: 5.7,
       }),
     });
-    expect(screen.getByText("5.7 kWh added")).toBeInTheDocument();
+    expect(screen.getByText("Added this session")).toBeInTheDocument();
+    expect(screen.getByText("5.7 kWh")).toBeInTheDocument();
   });
 
   it.each<[number, RegExp]>([
@@ -231,7 +232,7 @@ describe("VehicleCard", () => {
       gridPowerW: 500,
     });
 
-    expect(screen.queryByText(/kWh added/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Added this session")).not.toBeInTheDocument();
     expect(screen.queryByText(/solar,/)).not.toBeInTheDocument();
   });
 
@@ -370,9 +371,25 @@ describe("VehicleCard", () => {
     expect(screen.getByText("20A / 48A max")).toBeInTheDocument();
   });
 
-  it("shows Not Charging when not charging", () => {
+  // The status line already says it is plugged in and not charging.
+  it("shows no charge rate when not charging", () => {
     renderVC({ state: makeVehicleState({ isCharging: false }) });
-    expect(screen.getByText("Not Charging")).toBeInTheDocument();
+    expect(screen.queryByText("Charge rate")).not.toBeInTheDocument();
+    expect(screen.getByText("Auto - Plugged In")).toBeInTheDocument();
+  });
+
+  it("leaves out an adapter's routine status detail", () => {
+    renderVC({
+      chargerStatus: { status: "suspended", statusDetail: "SOC 72%/80%, 16A" },
+    });
+    expect(screen.queryByText(/SOC 72%/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a status detail that says something is wrong", () => {
+    renderVC({
+      chargerStatus: { status: "faulted", statusDetail: "overheated" },
+    });
+    expect(screen.getByText("Overheated")).toBeInTheDocument();
   });
 
   it("badges the charger it is plugged into", () => {
@@ -428,7 +445,7 @@ describe("VehicleCard", () => {
     });
 
     expect(screen.queryByText("20A / 48A max")).not.toBeInTheDocument();
-    expect(screen.queryByText("4.2 kWh added")).not.toBeInTheDocument();
+    expect(screen.queryByText("4.2 kWh")).not.toBeInTheDocument();
     expect(screen.queryByText("Priority: receiving all solar")).not
       .toBeInTheDocument();
   });

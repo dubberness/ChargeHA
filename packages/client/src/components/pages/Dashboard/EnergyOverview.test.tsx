@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { Theme } from "@radix-ui/themes";
-import { EnergyOverview } from "./EnergyOverview.tsx";
+import { TodaySummary } from "./EnergyOverview.tsx";
 import { trpc } from "../../../trpc.ts";
 
 vi.mock("../../../hooks/useEnergyData.ts", () => ({
@@ -51,7 +51,7 @@ vi.mock("../../../trpc.ts", () => ({
   },
 }));
 
-describe("EnergyOverview day boundary", () => {
+describe("TodaySummary day boundary", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.mocked(trpc.stats.day.useQuery).mockClear();
@@ -67,7 +67,7 @@ describe("EnergyOverview day boundary", () => {
 
     render(
       <Theme>
-        <EnergyOverview pluginWarnings={[]} />
+        <TodaySummary />
       </Theme>,
     );
 

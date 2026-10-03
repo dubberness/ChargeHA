@@ -1,24 +1,101 @@
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.metricsSection {
+.section {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.metricsSectionLabel {
+.sectionLabel {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.metricsRow {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+/* Status banner: the headline, then the tariff and schedule that explain it. */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  border-left: 3px solid var(--accent);
+}
+
+.headline {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.factLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--gray-10);
+}
+
+.factValue {
+  white-space: pre-line;
+}
+
+/* Live flow beside the charging cards once there is room for both. */
+.live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-4);
+  background: var(--color-panel);
+}
+
+@media (min-width: 960px) {
+  .live {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Today's totals: one row of figures rather than a tile each. */
+.today {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 16px 12px;
+}
+
+.todayStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.todayLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .lastUpdated {

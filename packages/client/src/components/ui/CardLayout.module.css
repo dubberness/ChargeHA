@@ -47,6 +47,11 @@
   margin-bottom: 12px;
 }
 
+/* A card with nothing to explain should not keep the gap. */
+.details:empty {
+  display: none;
+}
+
 .detailRow {
   display: flex;
   align-items: center;

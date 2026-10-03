@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Dashboard } from "./Dashboard.tsx";
+import { trpc } from "../../../trpc.ts";
 import {
   type DashboardHarness,
   dashboardMocks,
@@ -208,22 +209,6 @@ vi.mock("../../EnergyFlowDiagram/EnergyFlowDiagram.tsx", () => ({
   EnergyFlowDiagram: () => <div data-testid="energy-flow" />,
 }));
 
-// MetricCard mock surfaces `loading` and `subtitle` so tests can assert prop wiring.
-vi.mock("../../MetricCard/MetricCard.tsx", () => ({
-  MetricCard: (
-    { label, subtitle, loading }: {
-      label: string;
-      subtitle?: string;
-      loading?: boolean;
-    },
-  ) => (
-    <div data-testid="metric-card" data-loading={loading ? "true" : "false"}>
-      {label}
-      {subtitle && <span data-testid="metric-subtitle">{subtitle}</span>}
-    </div>
-  ),
-}));
-
 // VehicleCard mock surfaces solarPowerW/gridPowerW so tests can assert the
 // computed solar/grid split per vehicle.
 vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
@@ -269,8 +254,18 @@ vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
 describe("Dashboard", () => {
   let h: DashboardHarness;
 
+  const setStatsDay = (totalChargedWh: number, totalSolarWh: number) =>
+    vi.mocked(trpc.stats.day.useQuery).mockReturnValue(
+      {
+        data: { totalChargedWh, totalSolarWh },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof trpc.stats.day.useQuery>,
+    );
+
   beforeEach(() => {
     vi.clearAllMocks();
+    setStatsDay(0, 0);
     h = setupDashboard();
   });
 
@@ -278,7 +273,7 @@ describe("Dashboard", () => {
     cleanup();
   });
 
-  it("renders energy metric cards", () => {
+  it("renders today's energy figures", () => {
     h.render();
 
     expect(screen.getByText("Solar Generated")).toBeInTheDocument();
@@ -323,14 +318,14 @@ describe("Dashboard", () => {
       .toHaveAttribute("data-read-only", "true");
   });
 
-  it("forwards loading prop to MetricCard when energy data is loading", () => {
+  it("holds back today's figures while energy data is loading", () => {
     h.setEnergyLoading();
 
     h.render();
 
-    const cards = screen.getAllByTestId("metric-card");
-    expect(cards.length).toBeGreaterThan(0);
-    expect(cards.every((c) => c.getAttribute("data-loading") === "true"))
+    const stats = screen.getAllByTestId("today-stat");
+    expect(stats).toHaveLength(5);
+    expect(stats.every((stat) => !/Wh/.test(stat.textContent ?? "")))
       .toBe(true);
   });
 
@@ -526,7 +521,9 @@ describe("Dashboard", () => {
     });
   });
 
-  it("renders Battery metric card when batteryPowerW is present", () => {
+  // The flow diagram draws the home battery with its power and charge, so the
+  // dashboard does not repeat it in a tile of its own.
+  it("leaves the home battery to the flow diagram", () => {
     h.setEnergy({
       realtime: {
         solarProductionW: 5000,
@@ -539,40 +536,54 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.getByText("Battery")).toBeInTheDocument();
-    expect(screen.getByText("68% charged")).toBeInTheDocument();
-  });
-
-  it("does not render Battery metric card when batteryPowerW is null", () => {
-    h.setEnergy();
-
-    h.render();
-
+    expect(screen.getByTestId("energy-flow")).toBeInTheDocument();
     expect(screen.queryByText("Battery")).not.toBeInTheDocument();
   });
 
-  it("renders Battery metric without subtitle when batterySoc is null", () => {
+  it("shows how much of today's EV charging came from solar", () => {
+    setStatsDay(12000, 9000);
+
+    h.render();
+
+    expect(screen.getByText("EVs Charged")).toBeInTheDocument();
+    expect(screen.getByText("12.0 kWh")).toBeInTheDocument();
+    expect(screen.getByText("9.0 kWh from solar (75%)")).toBeInTheDocument();
+  });
+
+  it("says nothing about solar share before any charging today", () => {
+    h.render();
+
+    expect(screen.queryByText(/from solar/)).not.toBeInTheDocument();
+  });
+
+  it("leads with what the controller is doing", () => {
     h.setEnergy({
       realtime: {
-        solarProductionW: 5000,
-        gridPowerW: -1000,
-        homeConsumptionW: 3000,
-        batteryPowerW: 800,
+        solarProductionW: 4000,
+        gridPowerW: 0,
+        homeConsumptionW: 1000,
+        batteryPowerW: null,
         batterySoc: null,
       },
     });
+    h.setVehicles([
+      makeVehicle({
+        state: makeVehicleState({ isCharging: true, chargePowerKw: 3.0 }),
+      }),
+    ]);
 
     h.render();
 
-    expect(screen.getByText("Battery")).toBeInTheDocument();
-    expect(screen.queryByText(/% charged/)).not.toBeInTheDocument();
+    expect(screen.getByText("Charging Test Car on solar")).toBeInTheDocument();
   });
 
-  it("renders Charged Today and Solar to EVs cards", () => {
+  it("says when a plugged-in car is not charging", () => {
+    h.setVehicles();
+
     h.render();
 
-    expect(screen.getByText("Charged Today")).toBeInTheDocument();
-    expect(screen.getByText("Solar to EVs")).toBeInTheDocument();
+    expect(screen.getByText("Test Car is plugged in, not charging"))
+      .toBeInTheDocument();
   });
 
   // A smart charger is the control path, so it renders its own card and the
@@ -853,7 +864,7 @@ describe("Dashboard", () => {
     expect(onNavigateSettings).toHaveBeenCalled();
   });
 
-  it("renders Current Rate card with period label and next-rate subtitle", () => {
+  it("renders the current rate with its period label and next rate", () => {
     h.setTariff({
       ratePerKwh: 15,
       label: "Off-peak",
@@ -868,11 +879,11 @@ describe("Dashboard", () => {
     h.render();
 
     expect(screen.getByText("Tariff - Off-peak")).toBeInTheDocument();
-    const subtitle = screen.getByTestId("metric-subtitle");
+    const subtitle = screen.getByTestId("tariff-next");
     expect(subtitle.textContent).toContain("Next: Peak ($45.00) in 2h");
   });
 
-  it("does not render Current Rate card when tRPC returns null", () => {
+  it("does not render the current rate when tRPC returns null", () => {
     h.setTariff(null);
 
     h.render();

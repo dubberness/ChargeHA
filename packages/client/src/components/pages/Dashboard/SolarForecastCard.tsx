@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import {
   CalendarDays,
   CloudSun,
@@ -7,7 +7,7 @@ import {
   Sunrise,
   TriangleAlert,
 } from "lucide-react";
-import { Callout, Card, Text } from "@radix-ui/themes";
+import { Badge, Callout, Card, Text } from "@radix-ui/themes";
 import {
   Area,
   CartesianGrid,
@@ -26,7 +26,6 @@ import type {
 import { trpc } from "../../../trpc.ts";
 import { useSiteTimezone } from "../../../hooks/useSiteTimezone.ts";
 import { formatRelativeTime, kwhValue } from "../../../utils/Format.ts";
-import { MetricCard } from "../../MetricCard/MetricCard.tsx";
 import styles from "./SolarForecast.module.css";
 import dashboardStyles from "./Dashboard.module.css";
 
@@ -89,42 +88,95 @@ const rangeLabel = (day: SolarForecastDay) =>
     (day.forecastWh90 / 1000).toFixed(1)
   } kWh`;
 
-function ForecastMetrics({ summary }: { summary: SolarForecastSummary }) {
+function SummaryFact(
+  { icon, label, value, sub }: {
+    icon: ReactNode;
+    label: string;
+    value: string;
+    sub?: string;
+  },
+) {
+  return (
+    <div className={styles.fact}>
+      <div className={styles.factLabel}>
+        {icon}
+        <Text size="1" color="gray">{label}</Text>
+      </div>
+      <Text size="3" weight="bold">{value}</Text>
+      {sub && <Text size="1" color="gray">{sub}</Text>}
+    </div>
+  );
+}
+
+// Today's production against the forecast: the fill is what has been made,
+// the tick is the forecast and the band behind it is the likely range.
+function ProductionBar({ today }: { today: SolarForecastDay }) {
+  const actualWh = today.actualWh ?? 0;
+  const max = Math.max(today.forecastWh90, actualWh, 1);
+  const pct = (wh: number) => `${(wh / max) * 100}%`;
+  return (
+    <div className={styles.progress} aria-hidden="true">
+      <div
+        className={styles.progressRange}
+        style={{
+          left: pct(today.forecastWh10),
+          width: pct(today.forecastWh90 - today.forecastWh10),
+        }}
+      />
+      <div className={styles.progressFill} style={{ width: pct(actualWh) }} />
+      <div
+        className={styles.progressMark}
+        style={{ left: pct(today.forecastWh) }}
+      />
+    </div>
+  );
+}
+
+function ForecastSummary({ summary }: { summary: SolarForecastSummary }) {
   const { today } = summary;
   const tomorrow = summary.days[1];
+  const tracking = trackingLabel(today.actualToNowWh, today.forecastToNowWh);
   return (
-    <div className={dashboardStyles.metricsRow}>
-      <MetricCard
-        icon={<CloudSun size={20} />}
-        label="Forecast Today"
-        value={kwhValue(today.forecastWh)}
-        accentColor="var(--color-solar-forecast)"
-        subtitle={rangeLabel(today)}
-      />
-      <MetricCard
-        icon={<Sun size={20} />}
-        label="Produced So Far"
-        value={kwhValue(today.actualWh ?? 0)}
-        accentColor="var(--color-solar)"
-        subtitle={trackingLabel(today.actualToNowWh, today.forecastToNowWh) ??
-          undefined}
-      />
-      <MetricCard
-        icon={<Hourglass size={20} />}
-        label="Still to Come"
-        value={kwhValue(today.remainingWh)}
-        accentColor="var(--color-solar-forecast)"
-        subtitle="Forecast for the rest of today"
-      />
-      {tomorrow && (
-        <MetricCard
-          icon={<Sunrise size={20} />}
-          label="Forecast Tomorrow"
-          value={kwhValue(tomorrow.forecastWh)}
-          accentColor="var(--color-solar-forecast)"
-          subtitle={rangeLabel(tomorrow)}
+    <div className={styles.summary}>
+      <div className={styles.summaryHead}>
+        <div className={styles.produced}>
+          <Sun size={20} style={{ color: "var(--color-solar)" }} />
+          <Text size="6" weight="bold">{kwhValue(today.actualWh ?? 0)}</Text>
+          <Text size="2" color="gray">produced so far</Text>
+        </div>
+        {tracking && (
+          <Badge
+            variant="soft"
+            color={today.actualToNowWh >= today.forecastToNowWh
+              ? "green"
+              : "amber"}
+          >
+            {tracking}
+          </Badge>
+        )}
+      </div>
+      <ProductionBar today={today} />
+      <div className={styles.facts}>
+        <SummaryFact
+          icon={<CloudSun size={14} />}
+          label="Forecast Today"
+          value={kwhValue(today.forecastWh)}
+          sub={rangeLabel(today)}
         />
-      )}
+        <SummaryFact
+          icon={<Hourglass size={14} />}
+          label="Still to Come"
+          value={kwhValue(today.remainingWh)}
+        />
+        {tomorrow && (
+          <SummaryFact
+            icon={<Sunrise size={14} />}
+            label="Forecast Tomorrow"
+            value={kwhValue(tomorrow.forecastWh)}
+            sub={rangeLabel(tomorrow)}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -313,20 +365,20 @@ export function SolarForecastCard() {
   const updated = updatedLabel(summary);
 
   return (
-    <div className={dashboardStyles.metricsSection}>
+    <div className={dashboardStyles.section}>
       <Text
         size="1"
         color="gray"
         weight="medium"
-        className={dashboardStyles.metricsSectionLabel}
+        className={dashboardStyles.sectionLabel}
       >
         Solar Forecast
       </Text>
       {summary.panelLow && (
         <PanelLowWarning recentShare={summary.panelLow.recentShare} />
       )}
-      <ForecastMetrics summary={summary} />
       <Card>
+        <ForecastSummary summary={summary} />
         <div className={styles.header}>
           <CalendarDays size={16} />
           <Text size="2" weight="medium">Today and tomorrow</Text>

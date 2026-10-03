@@ -7,9 +7,7 @@ import {
   Plug,
   PlugZap,
   ShieldBan,
-  Sun,
   Unplug,
-  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button, Text, Tooltip } from "@radix-ui/themes";
@@ -48,11 +46,6 @@ const REASON_COLORS: Record<string, "blue" | "orange"> = {
 
 interface VehicleCardDetailsProps {
   state: VehicleChargeState;
-  disabled: boolean;
-  commandPending: string | false;
-  onStartCharging: () => void;
-  onStopCharging: () => void;
-  onSetAmps: (amps: number) => void;
   solarPowerW: number;
   gridPowerW: number;
   chargeLimitPercent: number;
@@ -61,6 +54,26 @@ interface VehicleCardDetailsProps {
   controllerDetail: string | null;
   chargerStatus: { status: string; statusDetail: string | null } | null;
 }
+
+interface ChargeControlsProps {
+  state: VehicleChargeState;
+  disabled: boolean;
+  commandPending: string | false;
+  onStartCharging: () => void;
+  onStopCharging: () => void;
+  onSetAmps: (amps: number) => void;
+}
+
+// The car's own card already shows its battery, limit and amps, and an
+// adapter's detail for an ordinary status only repeats them. A status outside
+// this set is the charger saying something the card does not.
+const ROUTINE_STATUSES = new Set([
+  "available",
+  "preparing",
+  "charging",
+  "suspended",
+  "finishing",
+]);
 
 const sentenceCase = (text: string) =>
   text.charAt(0).toUpperCase() + text.slice(1);
@@ -237,13 +250,52 @@ function AmpsControl(
   );
 }
 
+interface ChargeStat {
+  label: string;
+  value: string;
+}
+
+function sourceStat(solarPowerW: number, gridPowerW: number): ChargeStat[] {
+  if (solarPowerW <= 0 && gridPowerW <= 0) return [];
+  return [{
+    label: "Power from",
+    value: `${kwValue(solarPowerW)} solar, ${kwValue(gridPowerW)} grid`,
+  }];
+}
+
+function sessionStats(
+  state: VehicleChargeState,
+  solarPowerW: number,
+  gridPowerW: number,
+): ChargeStat[] {
+  if (!state.isCharging) return [];
+  return [
+    {
+      label: "Charge rate",
+      value: ampsRange(state.chargeAmps, state.chargeAmpsMax),
+    },
+    ...sourceStat(solarPowerW, gridPowerW),
+    {
+      label: "Added this session",
+      value: `${state.energyAddedKwh.toFixed(1)} kWh`,
+    },
+  ];
+}
+
+// Same gate as TimeToFullRow: the estimate alone, not the car's own flag.
+function timeLeftStat(
+  state: VehicleChargeState,
+  chargeLimitPercent: number,
+): ChargeStat[] {
+  if (state.minutesToFull <= 0) return [];
+  return [{
+    label: "Time left",
+    value: `${formatMinutes(state.minutesToFull)} to ${chargeLimitPercent}%`,
+  }];
+}
+
 export function VehicleCardDetails({
   state,
-  disabled,
-  commandPending,
-  onStartCharging,
-  onStopCharging,
-  onSetAmps,
   solarPowerW,
   gridPowerW,
   chargeLimitPercent,
@@ -252,18 +304,16 @@ export function VehicleCardDetails({
   controllerDetail,
   chargerStatus,
 }: VehicleCardDetailsProps) {
+  const stats = [
+    ...sessionStats(state, solarPowerW, gridPowerW),
+    ...timeLeftStat(state, chargeLimitPercent),
+  ];
+  const unusualStatus = chargerStatus !== null &&
+    !ROUTINE_STATUSES.has(chargerStatus.status);
   return (
     <>
-      {/* Charge details */}
+      {/* Why it is or isn't charging, ahead of the numbers */}
       <div className={layout.details}>
-        <div className={layout.detailRow}>
-          <Zap size={14} />
-          <Text size="1" color="gray">
-            {state.isCharging
-              ? ampsRange(state.chargeAmps, state.chargeAmpsMax)
-              : "Not Charging"}
-          </Text>
-        </div>
         {allocationStatus && (
           <div className={layout.detailRow}>
             <ArrowUpDown size={14} />
@@ -274,46 +324,46 @@ export function VehicleCardDetails({
           reason={controllerReason}
           detail={controllerDetail}
         />
+        {unusualStatus && <ChargerStatusRow chargerStatus={chargerStatus} />}
+      </div>
 
-        {state.isCharging && (
-          <>
-            {(solarPowerW > 0 || gridPowerW > 0) && (
-              <div className={layout.detailRow}>
-                <Sun size={14} />
-                <Text size="1" color="gray">
-                  {kwValue(solarPowerW)} solar, {kwValue(gridPowerW)} grid
-                </Text>
-              </div>
-            )}
-            <div className={layout.detailRow}>
-              <BatteryCharging size={14} />
-              <Text size="1" color="gray">
-                {state.energyAddedKwh.toFixed(1)} kWh added
-              </Text>
+      {stats.length > 0 && (
+        <div className={styles.stats}>
+          {stats.map((stat) => (
+            <div key={stat.label} className={styles.stat}>
+              <Text size="1" color="gray">{stat.label}</Text>
+              <Text size="2" weight="bold">{stat.value}</Text>
             </div>
-          </>
-        )}
-        <TimeToFullRow state={state} chargeLimitPercent={chargeLimitPercent} />
-        <ChargerStatusRow chargerStatus={chargerStatus} />
-      </div>
-
-      <div className={styles.controls}>
-        <div className={styles.buttonRow}>
-          <ChargeButton
-            isCharging={state.isCharging}
-            disabled={disabled}
-            commandPending={commandPending}
-            onStart={onStartCharging}
-            onStop={onStopCharging}
-          />
+          ))}
         </div>
-        <AmpsControl
-          state={state}
-          disabled={disabled}
-          commandPending={commandPending}
-          onSetAmps={onSetAmps}
-        />
-      </div>
+      )}
     </>
+  );
+}
+
+export function ChargeControls({
+  state,
+  disabled,
+  commandPending,
+  onStartCharging,
+  onStopCharging,
+  onSetAmps,
+}: ChargeControlsProps) {
+  return (
+    <div className={styles.controls}>
+      <ChargeButton
+        isCharging={state.isCharging}
+        disabled={disabled}
+        commandPending={commandPending}
+        onStart={onStartCharging}
+        onStop={onStopCharging}
+      />
+      <AmpsControl
+        state={state}
+        disabled={disabled}
+        commandPending={commandPending}
+        onSetAmps={onSetAmps}
+      />
+    </div>
   );
 }

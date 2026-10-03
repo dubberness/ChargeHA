@@ -1,29 +1,22 @@
-import { useMemo } from "react";
+import type { ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowDownToLine,
   ArrowUpFromLine,
-  Battery,
-  Calendar,
   Car,
-  DollarSign,
   Home,
   Info,
-  PlugZap,
   Sun,
 } from "lucide-react";
-import { Card, Text } from "@radix-ui/themes";
+import { Card, Skeleton, Text } from "@radix-ui/themes";
 import { useEnergyData } from "../../../hooks/useEnergyData.ts";
-import { useVehicles } from "../../../hooks/useVehicles.ts";
 import { EnergyFlowDiagram } from "../../EnergyFlowDiagram/EnergyFlowDiagram.tsx";
-import { MetricCard } from "../../MetricCard/MetricCard.tsx";
-import { formatRate, kwhValue, kwValue } from "../../../utils/Format.ts";
+import { kwhValue } from "../../../utils/Format.ts";
 import { localDateStr } from "@chargeha/shared/timezone";
 import { useSiteTimezone } from "../../../hooks/useSiteTimezone.ts";
 import { trpc } from "../../../trpc.ts";
 import {
   chargingEntriesFromPoints,
-  formatTimeUntil,
   useChargingFlows,
 } from "./energyHelpers.ts";
 import { useChargers } from "../../../hooks/useChargers.ts";
@@ -34,10 +27,6 @@ interface PluginWarning {
   message: string;
   // Absent on cards the dashboard raises itself, which are all errors.
   severity?: "warning" | "error";
-}
-
-interface EnergyOverviewProps {
-  pluginWarnings: PluginWarning[];
 }
 
 // Amber and red have to be far enough apart to read at a 3px border — a
@@ -67,204 +56,15 @@ function PluginWarningCard({ warning }: { warning: PluginWarning }) {
   );
 }
 
-function MetricSection(
-  { label, children }: { label: string; children: React.ReactNode },
+// Anything stopping the numbers below from being trusted, so it sits above
+// them.
+export function EnergyWarnings(
+  { pluginWarnings }: { pluginWarnings: PluginWarning[] },
 ) {
-  return (
-    <div className={styles.metricsSection}>
-      <Text
-        size="1"
-        color="gray"
-        weight="medium"
-        className={styles.metricsSectionLabel}
-      >
-        {label}
-      </Text>
-      <div className={styles.metricsRow}>{children}</div>
-    </div>
-  );
-}
-
-function StatusSection(
-  {
-    hasBattery,
-    realtime,
-    currentRate,
-    currentRateValue,
-    currentRateSubtitle,
-    activeScheduleLines,
-    loading,
-  }: {
-    hasBattery: boolean;
-    realtime:
-      | {
-        batteryPowerW: number | null | undefined;
-        batterySoc: number | null;
-      }
-      | null;
-    currentRate: { label: string } | null;
-    currentRateValue: string;
-    currentRateSubtitle: string | undefined;
-    activeScheduleLines: string[] | null;
-    loading: boolean;
-  },
-) {
-  return (
-    <MetricSection label="Status">
-      {hasBattery && realtime && (
-        <MetricCard
-          icon={<Battery size={20} />}
-          label="Battery"
-          value={kwValue(Math.abs(realtime.batteryPowerW ?? 0))}
-          accentColor="var(--color-battery)"
-          loading={loading}
-          subtitle={realtime.batterySoc !== null
-            ? `${Math.round(realtime.batterySoc)}% charged`
-            : undefined}
-        />
-      )}
-      {currentRate && (
-        <MetricCard
-          icon={<DollarSign size={20} />}
-          label={`Tariff - ${currentRate.label}`}
-          value={currentRateValue}
-          accentColor="var(--color-grid-import)"
-          subtitle={currentRateSubtitle}
-        />
-      )}
-      <MetricCard
-        icon={<Calendar size={20} />}
-        label={activeScheduleLines && activeScheduleLines.length > 1
-          ? "Active Schedules"
-          : "Active Schedule"}
-        value={activeScheduleLines?.join("\n") ?? "None"}
-        accentColor={activeScheduleLines ? "var(--orange-9)" : "var(--gray-9)"}
-        smallValue
-      />
-    </MetricSection>
-  );
-}
-
-function useOverviewData() {
-  const { data: energyData, isLoading: loading } = useEnergyData();
+  const { data: energyData } = useEnergyData();
   const realtime = energyData?.realtime ?? null;
-  const cumulative = energyData?.cumulative ?? null;
-  const { vehicles } = useVehicles();
-
-  const timezone = useSiteTimezone();
-  const today = localDateStr(new Date(), timezone);
-  const { data: statsDay = null } = trpc.stats.day.useQuery(
-    { date: today },
-    { refetchInterval: 60_000 },
-  );
-  const { data: currentRate = null } = trpc.tariff.currentRate.useQuery(
-    undefined,
-    { refetchInterval: 10_000 },
-  );
-  const { data: activeSchedules = [] } = trpc.schedule.active.useQuery(
-    undefined,
-    { refetchInterval: 30_000 },
-  );
-
-  const { chargers } = useChargers();
-  const chargingVehicles = useChargingFlows(
-    realtime,
-    chargingEntriesFromPoints(chargers),
-  );
-  const hasBattery = realtime?.batteryPowerW !== null &&
-    realtime?.batteryPowerW !== undefined;
-
-  const activeScheduleLines = useMemo(() => {
-    if (activeSchedules.length === 0) return null;
-    return activeSchedules.map((s) => {
-      const type = s.scheduleType === "blockout" ? "Blockout" : "Charge";
-      const vehicleName = s.vehicleId
-        ? vehicles.find((v) => v.id === s.vehicleId)?.name ?? "Vehicle"
-        : "All vehicles";
-      return `${type} ${s.startTime}-${s.endTime} · ${vehicleName}`;
-    });
-  }, [activeSchedules, vehicles]);
-
-  const currentRateValue = formatCurrentRateValue(currentRate);
-
-  const dailySolar = cumulative?.dailySolarProducedWh ?? 0;
-  const dailyImport = cumulative?.dailyGridImportWh ?? 0;
-  const dailyExport = cumulative?.dailyGridExportWh ?? 0;
-  const dailyConsumed = dailySolar + dailyImport - dailyExport;
-
-  const currentRateSubtitle = useMemo(
-    () => formatCurrentRateSubtitle(currentRate),
-    [currentRate],
-  );
-
-  return {
-    loading,
-    realtime,
-    chargingVehicles,
-    hasBattery,
-    statsDay,
-    currentRate,
-    activeScheduleLines,
-    currentRateValue,
-    currentRateSubtitle,
-    dailySolar,
-    dailyImport,
-    dailyExport,
-    dailyConsumed,
-  };
-}
-
-function formatCurrentRateValue(
-  currentRate:
-    | { currencySymbol?: string; ratePerKwh: number }
-    | null,
-): string {
-  if (!currentRate) return "";
-  const sym = currentRate.currencySymbol ?? "$";
-  return `${formatRate(currentRate.ratePerKwh, sym)}/kWh`;
-}
-
-function formatCurrentRateSubtitle(
-  currentRate:
-    | {
-      currencySymbol?: string;
-      nextRate?: { label: string; ratePerKwh: number; startsAt: string } | null;
-    }
-    | null,
-): string | undefined {
-  if (!currentRate?.nextRate) return undefined;
-  const sym = currentRate.currencySymbol ?? "$";
-  const { label, ratePerKwh, startsAt } = currentRate.nextRate;
-  return `Next: ${label} (${formatRate(ratePerKwh, sym)}) in ${
-    formatTimeUntil(startsAt)
-  }`;
-}
-
-export function EnergyOverview({ pluginWarnings }: EnergyOverviewProps) {
-  const {
-    loading,
-    realtime,
-    chargingVehicles,
-    hasBattery,
-    statsDay,
-    currentRate,
-    activeScheduleLines,
-    currentRateValue,
-    currentRateSubtitle,
-    dailySolar,
-    dailyImport,
-    dailyExport,
-    dailyConsumed,
-  } = useOverviewData();
-
   return (
     <>
-      <EnergyFlowDiagram
-        data={realtime}
-        loading={loading}
-        chargingVehicles={chargingVehicles}
-      />
-
       {realtime?.pollFailed && (
         <PluginWarningCard
           warning={{
@@ -274,73 +74,132 @@ export function EnergyOverview({ pluginWarnings }: EnergyOverviewProps) {
           }}
         />
       )}
-
       {pluginWarnings.map((warning) => (
         <PluginWarningCard key={warning.title} warning={warning} />
       ))}
-
-      <MetricSection label="Solar">
-        <MetricCard
-          icon={<Sun size={20} />}
-          label="Solar Generated"
-          value={kwhValue(dailySolar)}
-          accentColor="var(--color-solar)"
-          loading={loading}
-        />
-        <MetricCard
-          icon={<Home size={20} />}
-          label="Home Consumed"
-          value={kwhValue(dailyConsumed)}
-          accentColor="var(--color-home)"
-          loading={loading}
-        />
-      </MetricSection>
-
-      <MetricSection label="EV Charging">
-        <MetricCard
-          icon={<Car size={20} />}
-          label="Charged Today"
-          value={kwhValue(statsDay?.totalChargedWh ?? 0)}
-          accentColor="var(--color-charging)"
-          loading={loading}
-        />
-        <MetricCard
-          icon={<PlugZap size={20} />}
-          label="Solar to EVs"
-          value={kwhValue(statsDay?.totalSolarWh ?? 0)}
-          accentColor="var(--color-charging)"
-          loading={loading}
-        />
-      </MetricSection>
-
-      <MetricSection label="Grid">
-        <MetricCard
-          icon={<ArrowDownToLine size={20} />}
-          label="Grid Import"
-          value={kwhValue(dailyImport)}
-          accentColor="var(--color-grid-import)"
-          loading={loading}
-        />
-        <MetricCard
-          icon={<ArrowUpFromLine size={20} />}
-          label="Grid Export"
-          value={kwhValue(dailyExport)}
-          accentColor="var(--color-grid-export)"
-          loading={loading}
-        />
-      </MetricSection>
-
-      {(hasBattery || currentRate || activeScheduleLines) && (
-        <StatusSection
-          hasBattery={hasBattery}
-          realtime={realtime}
-          currentRate={currentRate}
-          currentRateValue={currentRateValue}
-          currentRateSubtitle={currentRateSubtitle}
-          activeScheduleLines={activeScheduleLines}
-          loading={loading}
-        />
-      )}
     </>
+  );
+}
+
+export function LiveFlow() {
+  const { data: energyData, isLoading: loading } = useEnergyData();
+  const realtime = energyData?.realtime ?? null;
+  const { chargers } = useChargers();
+  const chargingVehicles = useChargingFlows(
+    realtime,
+    chargingEntriesFromPoints(chargers),
+  );
+  return (
+    <div className={styles.flow}>
+      <EnergyFlowDiagram
+        data={realtime}
+        loading={loading}
+        chargingVehicles={chargingVehicles}
+      />
+    </div>
+  );
+}
+
+function TodayStat(
+  { icon, color, label, value, sub, loading }: {
+    icon: ReactNode;
+    color: string;
+    label: string;
+    value: string;
+    sub?: string | null;
+    loading: boolean;
+  },
+) {
+  return (
+    <div className={styles.todayStat} data-testid="today-stat">
+      <div className={styles.todayLabel} style={{ color }}>
+        {icon}
+        <Text size="1" color="gray">{label}</Text>
+      </div>
+      {loading
+        ? <Skeleton width="72px" height="26px" />
+        : <Text size="5" weight="bold">{value}</Text>}
+      {sub && !loading && <Text size="1" color="gray">{sub}</Text>}
+    </div>
+  );
+}
+
+// "11.2 kWh from solar (95%)" — the share is the point of the app, the
+// energy is what the old Solar to EVs tile carried.
+export function solarShareText(
+  chargedWh: number,
+  solarWh: number,
+): string | null {
+  if (chargedWh <= 0) return null;
+  const pct = Math.min(100, Math.round((solarWh / chargedWh) * 100));
+  return `${kwhValue(solarWh)} from solar (${pct}%)`;
+}
+
+export function TodaySummary() {
+  const { data: energyData, isLoading: loading } = useEnergyData();
+  const cumulative = energyData?.cumulative ?? null;
+  const timezone = useSiteTimezone();
+  const today = localDateStr(new Date(), timezone);
+  const { data: statsDay = null } = trpc.stats.day.useQuery(
+    { date: today },
+    { refetchInterval: 60_000 },
+  );
+
+  const dailySolar = cumulative?.dailySolarProducedWh ?? 0;
+  const dailyImport = cumulative?.dailyGridImportWh ?? 0;
+  const dailyExport = cumulative?.dailyGridExportWh ?? 0;
+  const chargedWh = statsDay?.totalChargedWh ?? 0;
+
+  return (
+    <div className={styles.section}>
+      <Text
+        size="1"
+        color="gray"
+        weight="medium"
+        className={styles.sectionLabel}
+      >
+        Today
+      </Text>
+      <Card>
+        <div className={styles.today}>
+          <TodayStat
+            icon={<Sun size={16} />}
+            color="var(--color-solar)"
+            label="Solar Generated"
+            value={kwhValue(dailySolar)}
+            loading={loading}
+          />
+          <TodayStat
+            icon={<Home size={16} />}
+            color="var(--color-home)"
+            label="Home Consumed"
+            value={kwhValue(dailySolar + dailyImport - dailyExport)}
+            loading={loading}
+          />
+          <TodayStat
+            icon={<ArrowDownToLine size={16} />}
+            color="var(--color-grid-import)"
+            label="Grid Import"
+            value={kwhValue(dailyImport)}
+            loading={loading}
+          />
+          <TodayStat
+            icon={<ArrowUpFromLine size={16} />}
+            color="var(--color-grid-export)"
+            label="Grid Export"
+            value={kwhValue(dailyExport)}
+            loading={loading}
+          />
+          <TodayStat
+            icon={<Car size={16} />}
+            color="var(--color-charging)"
+            label="EVs Charged"
+            value={kwhValue(chargedWh)}
+            sub={solarShareText(chargedWh, statsDay?.totalSolarWh ?? 0)}
+            loading={loading}
+          />
+        </div>
+      </Card>
+    </div>
   );
 }

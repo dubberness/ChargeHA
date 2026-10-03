@@ -5,7 +5,8 @@ import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { formatRelativeTime } from "../../../utils/Format.ts";
 import { trpc } from "../../../trpc.ts";
-import { EnergyOverview } from "./EnergyOverview.tsx";
+import { EnergyWarnings, LiveFlow, TodaySummary } from "./EnergyOverview.tsx";
+import { StatusBanner } from "./StatusBanner.tsx";
 import { VehicleList } from "./VehicleList.tsx";
 import { SolarForecastCard } from "./SolarForecastCard.tsx";
 import styles from "./Dashboard.module.css";
@@ -102,13 +103,19 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
         </Card>
       )}
 
-      <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
+      <EnergyWarnings pluginWarnings={pluginWarnings ?? []} />
+
+      <StatusBanner />
+
+      {/* The live picture beside the thing it controls; stacked on a phone. */}
+      <div className={styles.live}>
+        <LiveFlow />
+        <VehicleList onNavigateSettings={onNavigateSettings} />
+      </div>
+
+      <TodaySummary />
 
       <SolarForecastCard />
-
-      <VehicleList
-        onNavigateSettings={onNavigateSettings}
-      />
 
       {lastUpdated && (
         <Text size="1" color="gray" className={styles.lastUpdated}>
