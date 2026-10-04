@@ -255,8 +255,17 @@ export class SolarChargePlanner {
       minGenerationW: solar.minSolarGenerationKw * 1000,
       marginW: solar.solarMarginKw * 1000,
       reference: solar.solarReference,
-      blockedAt: (ms) =>
-        selectActiveBlockout(schedules, new Date(ms), timezone) !== null,
+      blockedAt: (ms) => {
+        const blockout = selectActiveBlockout(
+          schedules,
+          new Date(ms),
+          timezone,
+        );
+        return blockout !== null && !blockout.allowSolar;
+      },
+      solarOnlyAt: (ms) =>
+        selectActiveBlockout(schedules, new Date(ms), timezone)?.allowSolar ===
+          true,
     };
   }
 

@@ -8,6 +8,7 @@ import type {
 } from "@chargeha/shared";
 import { DayPicker } from "../DayPicker/DayPicker.tsx";
 import { TimePicker } from "../TimePicker/TimePicker.tsx";
+import { BlockoutSettings } from "./BlockoutSettings.tsx";
 import { ChargeSettings } from "./ChargeSettings.tsx";
 import styles from "./ScheduleDialog.module.css";
 import { FormError } from "../ui/FormError.tsx";
@@ -38,6 +39,7 @@ const DEFAULT_FORM: ScheduleFormData = {
   chargeAmps: 32,
   chargeLimitPct: 80,
   solarAware: false,
+  allowSolar: false,
 };
 
 function useInitForm(
@@ -70,6 +72,8 @@ function useInitForm(
           : DEFAULT_FORM.chargeLimitPct,
         solarAware: editingSchedule.scheduleType === "charge" &&
           editingSchedule.solarAware,
+        allowSolar: editingSchedule.scheduleType === "blockout" &&
+          editingSchedule.allowSolar,
       });
     } else {
       setForm({
@@ -92,6 +96,35 @@ function useInitForm(
     defaultStartTime,
     defaultEndTime,
   ]);
+}
+
+// The settings only one schedule type has.
+function TypeSettings({ form, maxAmps, updateField }: {
+  form: ScheduleFormData;
+  maxAmps: number;
+  updateField: <K extends keyof ScheduleFormData>(
+    key: K,
+    value: ScheduleFormData[K],
+  ) => void;
+}) {
+  if (form.scheduleType === "blockout") {
+    return (
+      <BlockoutSettings
+        allowSolar={form.allowSolar ?? false}
+        updateField={updateField}
+      />
+    );
+  }
+  return (
+    <ChargeSettings
+      chargeAmps={form.chargeAmps}
+      chargeLimitPct={form.chargeLimitPct ?? NO_LIMIT_PCT}
+      solarAware={form.solarAware ?? false}
+      isChargerKeyed={form.chargerId !== null}
+      maxAmps={maxAmps}
+      updateField={updateField}
+    />
+  );
 }
 
 export function ScheduleForm({
@@ -182,17 +215,11 @@ export function ScheduleForm({
           />
         </div>
 
-        {/* Charge settings (charge only) */}
-        {isCharge && (
-          <ChargeSettings
-            chargeAmps={form.chargeAmps}
-            chargeLimitPct={form.chargeLimitPct ?? NO_LIMIT_PCT}
-            solarAware={form.solarAware ?? false}
-            isChargerKeyed={form.chargerId !== null}
-            maxAmps={maxAmps}
-            updateField={updateField}
-          />
-        )}
+        <TypeSettings
+          form={form}
+          maxAmps={maxAmps}
+          updateField={updateField}
+        />
 
         {/* Validation error */}
         <FormError message={error} />

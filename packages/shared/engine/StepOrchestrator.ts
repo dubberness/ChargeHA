@@ -25,6 +25,7 @@ export class StepOrchestrator {
     Steps.displaced,
     Steps.insufficientSolar,
     Steps.cooldown,
+    Steps.steadySolar,
     Steps.sufficientSolar,
     Steps.idle,
   ];

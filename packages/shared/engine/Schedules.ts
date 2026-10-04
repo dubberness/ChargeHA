@@ -164,15 +164,18 @@ export function selectActiveChargeSchedule(
   };
 }
 
+// When blockouts overlap, one that blocks everything outranks one that
+// still allows solar.
 export function selectActiveBlockout(
   schedules: EngineSchedule[],
   now: Date,
   timezone: string,
 ): EngineSchedule | null {
-  return schedules.find((s) =>
+  const active = schedules.filter((s) =>
     s.scheduleType === "blockout" && s.enabled &&
     isScheduleActiveNow(s, now, timezone)
-  ) ?? null;
+  );
+  return active.find((s) => !s.allowSolar) ?? active[0] ?? null;
 }
 
 // The schedule limit the battery has met, or undefined.

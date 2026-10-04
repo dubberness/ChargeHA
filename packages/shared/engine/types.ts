@@ -65,6 +65,8 @@ export interface EngineSchedule {
   chargeAmps: number | null;
   chargeLimitPct: number | null;
   solarAware?: boolean;
+  // Blockouts only: solar may still charge the car, the grid may not.
+  allowSolar?: boolean;
   enabled: boolean;
 }
 
@@ -109,6 +111,9 @@ export interface VehicleControlState {
   // Timestamp (ms) when pendingAmps was first seen. Used by debounceAmps
   // to determine if the target has been stable long enough to apply.
   pendingSince: number | null;
+  // When a solar-only blockout first saw enough surplus to start a charge.
+  // Null unless it is waiting for that surplus to hold.
+  solarReadySince: number | null;
 }
 
 // ---- Engine output types ----
@@ -160,6 +165,7 @@ export type ControlStateUpdates = Partial<
     | "blockoutChargeNotified"
     | "pendingAmps"
     | "pendingSince"
+    | "solarReadySince"
   >
 >;
 
@@ -201,5 +207,6 @@ export function createControlState(): VehicleControlState {
     allocatedAmps: null,
     pendingAmps: null,
     pendingSince: null,
+    solarReadySince: null,
   };
 }

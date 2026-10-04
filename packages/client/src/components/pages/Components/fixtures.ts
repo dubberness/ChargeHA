@@ -144,6 +144,7 @@ export const blockoutSchedule: Schedule = {
   startTime: "16:00",
   endTime: "20:00",
   days: ["sat", "sun"],
+  allowSolar: false,
   enabled: false,
 };
 

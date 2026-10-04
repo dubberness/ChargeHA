@@ -356,6 +356,55 @@ describe("ScheduleForm", () => {
     });
   });
 
+  it("saves a blockout that allows solar charging", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    renderWithProviders(
+      <ScheduleForm
+        {...defaultProps}
+        scheduleType="blockout"
+        onSave={onSave}
+      />,
+    );
+
+    expect(screen.getByText("Allow solar charging")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch"));
+    submitForm();
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ allowSolar: true }),
+      );
+    });
+  });
+
+  it("shows a blockout's solar setting when editing it", () => {
+    renderWithProviders(
+      <ScheduleForm
+        {...defaultProps}
+        scheduleType="blockout"
+        editingSchedule={{
+          id: "s2",
+          vehicleId: null,
+          chargerId: null,
+          scheduleType: "blockout",
+          startTime: "17:00",
+          endTime: "21:00",
+          days: ["mon"],
+          allowSolar: true,
+          enabled: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("switch")).toBeChecked();
+  });
+
+  it("offers solar charging only on a blockout", () => {
+    renderWithProviders(<ScheduleForm {...defaultProps} />);
+
+    expect(screen.queryByText("Allow solar charging")).not.toBeInTheDocument();
+  });
+
   it("offers solar-aware only when the schedule can see the battery", () => {
     renderWithProviders(<ScheduleForm {...chargerProps} />);
 
@@ -449,6 +498,7 @@ describe("ScheduleForm", () => {
           startTime: "17:00",
           endTime: "21:00",
           days: ["mon", "tue", "wed", "thu", "fri"],
+          allowSolar: false,
           enabled: true,
         }}
       />,

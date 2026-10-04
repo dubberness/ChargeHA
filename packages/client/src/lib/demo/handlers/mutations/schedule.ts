@@ -22,6 +22,7 @@ export const scheduleMutations: ScheduleMutations = {
       chargeAmps: isCharge ? (input.chargeAmps ?? null) : null,
       chargeLimitPct: isCharge ? (input.chargeLimitPct ?? null) : null,
       solarAware: isCharge && (input.solarAware ?? false),
+      allowSolar: !isCharge && (input.allowSolar ?? false),
       enabled: true,
     };
     updateDemoState((m) => ({ ...m, schedules: [...m.schedules, created] }));
@@ -45,6 +46,7 @@ export const scheduleMutations: ScheduleMutations = {
         ? input.chargeLimitPct
         : s.chargeLimitPct,
       solarAware: input.solarAware ?? s.solarAware,
+      allowSolar: input.allowSolar ?? s.allowSolar,
       enabled: input.enabled ?? s.enabled,
     });
     const next = updateDemoState((m) => ({

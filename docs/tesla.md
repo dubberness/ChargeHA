@@ -320,7 +320,8 @@ polling. Rules 1 and 2 are fixed because they protect plug-in detection.
 Waking is more restricted than fetching, because a wake costs 10× a data fetch.
 On top of the cache rules, a scheduled wake is suppressed when:
 
-- A blockout schedule is active (no charging allowed anyway).
+- A blockout schedule is active (no charging allowed anyway). One that allows
+  solar only suppresses the wake while there is no solar to follow.
 - Neither schedule nor solar applies (no reason to top up).
 - The cached state shows the car is unplugged. Tesla wakes itself on plug-in;
   the free `/vehicles` probe will catch it.

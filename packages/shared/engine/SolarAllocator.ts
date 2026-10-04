@@ -38,11 +38,14 @@ interface AllocationContext {
 const ADMISSION_HEADROOM_W = 460;
 
 export class SolarAllocator {
+  // `cushionW` is extra surplus left exporting — only a solar-only blockout
+  // sets it.
   static targets(
     state: VehicleChargeState,
     config: ControllerConfig,
     energy: EnergyData | null,
     allocatedAmps: number | null,
+    cushionW = 0,
   ): SolarTargets | null {
     if (!config.solarTrackingEnabled || !energy) return null;
     const voltage = SolarAllocator.resolveVoltage(
@@ -54,15 +57,23 @@ export class SolarAllocator {
       state.chargerPhases,
       config.threePhaseCharger,
     );
-    const availableW = SolarAllocator.calculateAvailableSolar(
+    const surplusW = SolarAllocator.calculateAvailableSolar(
       config,
       energy,
       state,
       voltage,
       phases,
     );
+    const availableW = Math.max(0, surplusW - cushionW);
     const rawAmps = Math.floor(availableW / (voltage * phases));
     const targetAmps = allocatedAmps ?? rawAmps;
+    // A car already charging is only short once solar stops covering its
+    // minimum: the cushion is there to be spent, not defended.
+    const spendsCushion = cushionW > 0 && state.isCharging &&
+      allocatedAmps === null;
+    const coveredAmps = spendsCushion
+      ? Math.floor(surplusW / (voltage * phases))
+      : targetAmps;
     const clampedAmps = Math.max(
       state.chargeAmpsMin,
       Math.min(state.chargeAmpsMax, targetAmps),
@@ -77,7 +88,7 @@ export class SolarAllocator {
       targetAmps,
       clampedAmps,
       belowMinGeneration: solarKw < config.minSolarGenerationKw,
-      belowMinAmps: targetAmps < state.chargeAmpsMin,
+      belowMinAmps: coveredAmps < state.chargeAmpsMin,
     };
   }
 

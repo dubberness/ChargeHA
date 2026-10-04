@@ -117,5 +117,6 @@ export const blockoutSchedule: BlockoutSchedule = {
   startTime: "17:00",
   endTime: "21:00",
   days: ["mon", "tue", "wed", "thu", "fri"] as DayOfWeek[],
+  allowSolar: false,
   enabled: true,
 };

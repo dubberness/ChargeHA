@@ -12,6 +12,7 @@ export type TraceName =
   | "min_excess_solar"
   | "cooldown"
   | "amp_debounce"
+  | "steady_solar"
   | "grace_period"
   | "solar_allocation";
 
@@ -128,12 +129,30 @@ export class Trace {
     };
   }
 
+  static blockoutSolarOnly(
+    schedule: { startTime: string; endTime: string },
+  ): StepTrace {
+    return {
+      check: "blockout_schedule",
+      result: `solar only: ${schedule.startTime}-${schedule.endTime}`,
+    };
+  }
+
   static blockoutNone(): StepTrace {
     return { check: "blockout_schedule", result: "none active" };
   }
 
   static scheduleNone(): StepTrace {
     return { check: "charge_schedule", result: "none active" };
+  }
+
+  static scheduleBlocked(
+    schedule: { startTime: string; endTime: string; chargeAmps: number | null },
+  ): StepTrace {
+    return {
+      check: "charge_schedule",
+      result: `${scheduleSummary(schedule)} — held by blockout`,
+    };
   }
 
   static scheduleActive(
@@ -213,6 +232,20 @@ export class Trace {
     return {
       check: "amp_debounce",
       result: `held at ${currentAmps}A (target ${targetAmps}A, settling)`,
+    };
+  }
+
+  static steadySolarWaiting(elapsedSec: number, settleSec: number): StepTrace {
+    return {
+      check: "steady_solar",
+      result: `waiting (${elapsedSec}s < ${settleSec}s)`,
+    };
+  }
+
+  static steadySolarOk(elapsedSec: number, settleSec: number): StepTrace {
+    return {
+      check: "steady_solar",
+      result: `ok (${elapsedSec}s >= ${settleSec}s)`,
     };
   }
 

@@ -7,6 +7,7 @@ import {
   type SolarForecastPeriod,
 } from "@chargeha/shared/solarForecast";
 import { localDateStr } from "@chargeha/shared/timezone";
+import { SOLAR_ONLY } from "@chargeha/shared/engine";
 import { localHour } from "./forecastLearning.ts";
 
 const HOURS = 24;
@@ -34,17 +35,24 @@ export interface SurplusRules {
   reference: "excess" | "gross";
   // True when charging is blocked at that instant (a blockout).
   blockedAt: (ms: number) => boolean;
+  // True when a blockout that allows solar is in force at that instant.
+  solarOnlyAt?: (ms: number) => boolean;
 }
 
 // Solar power the car gets during one forecast period, in watts.
+// Under a solar-only blockout only true surplus counts, less the cushion.
 export function carSolarW(
   pvW: number,
   houseW: number,
   rules: SurplusRules,
+  solarOnly = false,
 ): number {
   if (pvW < rules.minGenerationW) return 0;
-  const houseShare = rules.reference === "gross" ? 0 : houseW;
-  const surplus = pvW - houseShare - rules.marginW;
+  const houseShare = rules.reference === "gross" && !solarOnly ? 0 : houseW;
+  const marginW = solarOnly
+    ? Math.max(rules.marginW, SOLAR_ONLY.cushionKw * 1000)
+    : rules.marginW;
+  const surplus = pvW - houseShare - marginW;
   if (surplus < rules.minChargeW) return 0;
   return Math.min(rules.maxChargeW, surplus);
 }
@@ -73,7 +81,12 @@ export function solarToCar<P extends SolarForecastPeriod>(
     if (endMs <= startMs) return acc;
     const midMs = (startMs + endMs) / 2;
     if (rules.blockedAt(midMs)) return acc;
-    const w = carSolarW(pick(period), houseW(midMs), rules);
+    const w = carSolarW(
+      pick(period),
+      houseW(midMs),
+      rules,
+      rules.solarOnlyAt?.(midMs) ?? false,
+    );
     if (w <= 0) return acc;
     const wh = w * (endMs - startMs) / 3_600_000;
     if (acc.wh + wh < capWh) return { wh: acc.wh + wh, capReachedAtMs: null };

@@ -51,9 +51,13 @@ export function ScheduleCard({
   const solarSuffix = schedule.scheduleType === "charge" && schedule.solarAware
     ? ", less expected solar"
     : "";
+  const blockoutText =
+    schedule.scheduleType === "blockout" && schedule.allowSolar
+      ? "Solar charging only, nothing from the grid"
+      : "Stop all charging";
   const detailText = isCharge
     ? `Charge at ${schedule.chargeAmps}A${limitSuffix}${solarSuffix}`
-    : "Stop all charging";
+    : blockoutText;
 
   return (
     <Card

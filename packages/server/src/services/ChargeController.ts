@@ -15,6 +15,7 @@ import {
   scheduleTargets,
   selectActiveBlockout,
   selectActiveChargeSchedule,
+  SOLAR_ONLY,
   Trace,
 } from "@chargeha/shared/engine";
 import type {
@@ -144,7 +145,7 @@ export class ChargeController {
 
   // Run a single iteration of the control loop without scheduling the next.
   // Used by the simulator to step the controller one tick at a time. Returns
-  // the loaded config so the loop scheduler can read controllerLoopSeconds without a redundant DB round-trip.
+  // the loaded config, with controllerLoopSeconds set to the wait before the next loop, so the scheduler needs no redundant DB round-trip.
   async runOnce(): Promise<ControllerConfig> {
     const traceId = createTraceId();
     const config = await this.loadConfig();
@@ -168,7 +169,9 @@ export class ChargeController {
       now,
       config.timezone,
     );
-    const hasBlockout = activeBlockout !== null;
+    // A blockout that allows solar only blocks while there is none to follow.
+    const solarOnly = activeBlockout?.allowSolar === true;
+    const hasBlockout = activeBlockout !== null && !(solarOnly && hasSolar);
 
     // Request fresh state for each target via its middleware
     const loopTargets: LoopTarget[] = await Promise.all(
@@ -246,13 +249,39 @@ export class ChargeController {
       await this.db.insertControllerLogEntries(logEntries);
     }
 
-    this.loopCount++;
-    if (this.loopCount % PRUNE_EVERY_N_LOOPS === 0) {
-      const system = await this.configService.getSystem();
-      await this.db.pruneControllerLogs(system.logRetentionDays);
-    }
+    await this.pruneLogsPeriodically();
 
-    return config;
+    return {
+      ...config,
+      controllerLoopSeconds: this.nextLoopSeconds(config, solarOnly, output),
+    };
+  }
+
+  private async pruneLogsPeriodically(): Promise<void> {
+    this.loopCount++;
+    if (this.loopCount % PRUNE_EVERY_N_LOOPS !== 0) return;
+    const system = await this.configService.getSystem();
+    await this.db.pruneControllerLogs(system.logRetentionDays);
+  }
+
+  // Under a solar-only blockout a car charging on solar is sampled faster, so
+  // a cloud is caught sooner. After a command the normal interval gives the
+  // car time to respond before the meter is trusted again.
+  private nextLoopSeconds(
+    config: ControllerConfig,
+    solarOnly: boolean,
+    output: EngineOutput,
+  ): number {
+    const decisions = [...output.decisions.entries()];
+    const tracking = decisions.some(([id, d]) =>
+      (d.reason === "solar_tracking" || d.reason === "grace_period") &&
+      output.controlStates.get(id)?.prevState?.isCharging === true
+    );
+    const commanded = decisions.some(([, d]) => d.action !== "none");
+    if (!solarOnly || !tracking || commanded) {
+      return config.controllerLoopSeconds;
+    }
+    return Math.min(config.controllerLoopSeconds, SOLAR_ONLY.loopSeconds);
   }
 
   private async executeDecision(
@@ -547,7 +576,7 @@ export class ChargeController {
         schedules,
         now,
         config.timezone,
-        config.gracePeriodMinutes,
+        this.announcedGraceMinutes(config, schedules, now),
       );
     }
     cs.prevState = postState;
@@ -563,6 +592,17 @@ export class ChargeController {
       targetAmps: entry.targetAmps,
       traceId,
     };
+  }
+
+  // A solar-only blockout stops within seconds of a shortfall, so the stop
+  // itself is the only notice worth sending.
+  private announcedGraceMinutes(
+    config: ControllerConfig,
+    schedules: ScheduleRow[],
+    now: Date,
+  ): number | null {
+    const blockout = selectActiveBlockout(schedules, now, config.timezone);
+    return blockout?.allowSolar ? null : config.gracePeriodMinutes;
   }
 
   private async loop(): Promise<void> {
@@ -603,7 +643,8 @@ export class ChargeController {
     schedules: ScheduleRow[],
     now: Date,
     timezone: string,
-    gracePeriodMinutes: number,
+    // Null when the grace period is too short to be worth announcing.
+    gracePeriodMinutes: number | null,
   ): void {
     const controlState = this.engine.getControlState(target.id);
     const prevState = controlState.prevState;
@@ -664,11 +705,13 @@ export class ChargeController {
     // Low solar: grace period just started
     if (controlState.graceStartedAt !== null && !controlState.graceNotified) {
       controlState.graceNotified = true;
-      this.eventEmitter.emit("controller_low_solar", {
-        vehicleId: target.id,
-        vehicleName: target.name,
-        gracePeriodMinutes,
-      });
+      if (gracePeriodMinutes !== null) {
+        this.eventEmitter.emit("controller_low_solar", {
+          vehicleId: target.id,
+          vehicleName: target.name,
+          gracePeriodMinutes,
+        });
+      }
     }
 
     // Schedule activation: new schedule IDs not active last cycle

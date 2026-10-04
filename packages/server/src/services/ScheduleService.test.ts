@@ -146,6 +146,36 @@ describe("ScheduleService", () => {
         .toBe(false);
     });
 
+    it("stores whether a blockout allows solar charging", async () => {
+      const { schedule } = await service.create({
+        scheduleType: "blockout",
+        startTime: "17:00",
+        endTime: "22:00",
+        days: ["mon"],
+        allowSolar: true,
+      });
+      expect(schedule.scheduleType === "blockout" && schedule.allowSolar)
+        .toBe(true);
+
+      const { schedule: updated } = await service.update({
+        id: schedule.id,
+        allowSolar: false,
+      });
+      expect(updated.scheduleType === "blockout" && updated.allowSolar)
+        .toBe(false);
+    });
+
+    it("blocks everything unless a blockout says otherwise", async () => {
+      const { schedule } = await service.create({
+        scheduleType: "blockout",
+        startTime: "17:00",
+        endTime: "22:00",
+        days: ["mon"],
+      });
+      expect(schedule.scheduleType === "blockout" && schedule.allowSolar)
+        .toBe(false);
+    });
+
     it("creates a blockout schedule (skips charge validation)", async () => {
       const result = await service.create({
         scheduleType: "blockout",

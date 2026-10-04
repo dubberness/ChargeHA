@@ -36,6 +36,7 @@ describe("scheduleGapUtils", () => {
     startTime,
     endTime,
     days: [...ALL_DAYS],
+    allowSolar: false,
     enabled: true,
   });
 

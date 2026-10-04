@@ -50,6 +50,7 @@ export interface DemoSchedule {
   chargeAmps: number | null;
   chargeLimitPct: number | null;
   solarAware?: boolean;
+  allowSolar?: boolean;
   enabled: boolean;
 }
 

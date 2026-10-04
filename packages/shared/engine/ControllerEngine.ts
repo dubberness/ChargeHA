@@ -1,6 +1,7 @@
 import { SolarAllocator } from "./SolarAllocator.ts";
 import { Trace } from "./Trace.ts";
 import { StepOrchestrator } from "./StepOrchestrator.ts";
+import { solarOnlyConfig, solarOnlyCushionW } from "./SolarOnly.ts";
 import type {
   EngineInput,
   EngineOutput,
@@ -16,8 +17,8 @@ export class ControllerEngine {
   private controlStates = new Map<string, VehicleControlState>();
 
   decide(input: EngineInput): EngineOutput {
-    const { config, vehicles, activeBlockout, energy, now, timestamp } = input;
-    if (!config.chargingEnabled) {
+    const { vehicles, activeBlockout, energy, now, timestamp } = input;
+    if (!input.config.chargingEnabled) {
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => [vehicle.id, {
           action: "none",
@@ -30,8 +31,17 @@ export class ControllerEngine {
       return { decisions, controlStates: this.controlStates };
     }
 
+    // A blockout that allows solar tracks under its own, tighter rules.
+    const solarOnly = activeBlockout?.allowSolar === true;
+    const config = solarOnly ? solarOnlyConfig(input.config) : input.config;
+    const cushionW = solarOnly ? solarOnlyCushionW(config) : 0;
+
     // Pre-compute per-vehicle solar allocation
-    const allocation = SolarAllocator.allocate(vehicles, config, energy);
+    const allocation = SolarAllocator.allocate(
+      vehicles,
+      { ...config, solarMarginKw: config.solarMarginKw + cushionW / 1000 },
+      energy,
+    );
     vehicles.forEach((vehicle) => {
       const cs = this.getControlState(vehicle.id);
       this.controlStates.set(vehicle.id, {
@@ -59,9 +69,17 @@ export class ControllerEngine {
             config,
             energy,
             cs.allocatedAmps,
+            cushionW,
           ),
         });
-        this.controlStates.set(vehicle.id, { ...cs, ...stateUpdates });
+        // The settle clocks only run while their own step keeps deciding;
+        // any other outcome starts them again.
+        this.controlStates.set(vehicle.id, {
+          ...cs,
+          solarReadySince: null,
+          ...(solarOnly ? { pendingAmps: null, pendingSince: null } : {}),
+          ...stateUpdates,
+        });
         return [vehicle.id, decision];
       }),
     );
