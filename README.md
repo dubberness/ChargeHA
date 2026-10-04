@@ -73,7 +73,8 @@ ChargeHA is not affiliated with, endorsed by, or associated with ChargeHQ.
   configured state-of-charge threshold
 - **Charge scheduling** — time-based schedules with day-of-week selection,
   per-vehicle amperage, and target charge limits
-- **Blockout schedules** — prevent charging during peak tariff windows
+- **Blockout schedules** — prevent charging during peak tariff windows, or allow
+  solar only, with nothing from the grid
 - **Real-time dashboard** — live energy flow diagram showing solar, grid,
   battery, and EV power with vehicle status cards
 - **Notifications** — Telegram alerts for charge start/stop, plug events, low
@@ -213,7 +214,8 @@ Wake is rate-limited to **once per hour** per vehicle, and is skipped when:
   plug-in, so the free `/vehicles` probe will catch that path — no point
   spending $0.02 waking an unplugged car).
 
-Blockouts never trigger a wake; schedules and solar do.
+Blockouts never trigger a wake; schedules and solar do. A blockout that allows
+solar counts as solar while the sun is up.
 
 ### Charge-rate (amps) updates
 
@@ -237,7 +239,8 @@ evaluates each charging point through a priority pipeline:
 
 1. **Pre-checks** — is the vehicle plugged in, at home, and below its charge
    limit?
-2. **Blockout schedules** — stop if inside a blockout window
+2. **Blockout schedules** — stop if inside a blockout window, unless it allows
+   solar
 3. **Charge schedules** — charge at the scheduled amps if a schedule is active
 4. **Battery priority** — hold if home battery SOC is below the configured
    threshold

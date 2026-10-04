@@ -14,6 +14,7 @@ export {
   selectActiveChargeSchedule,
 } from "./Schedules.ts";
 export type { ActiveChargeSchedule, SolarPlan } from "./Schedules.ts";
+export { SOLAR_ONLY, solarOnlyConfig } from "./SolarOnly.ts";
 export { createControlState } from "./types.ts";
 export type {
   ControllerConfig,

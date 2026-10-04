@@ -535,7 +535,8 @@ export function Schedules({ onNavigateSettings }: SchedulesProps) {
             Outside of scheduled windows, vehicles in Auto mode will charge
             based on excess solar production. Blockout schedules take priority
             over charge schedules — if a blockout is active, charging will not
-            start regardless of other settings.
+            start regardless of other settings. A blockout set to allow solar
+            charging still charges from spare solar, but never from the grid.
           </Text>
         </div>
       </Card>

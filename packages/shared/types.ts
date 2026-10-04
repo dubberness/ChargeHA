@@ -235,6 +235,8 @@ export interface BlockoutSchedule {
   startTime: string; // HH:MM 24h format
   endTime: string; // HH:MM 24h format
   days: DayOfWeek[];
+  // Solar may still charge the car during the blockout; the grid may not.
+  allowSolar: boolean;
   enabled: boolean;
 }
 
@@ -250,6 +252,7 @@ export interface ScheduleFormData {
   chargeAmps: number;
   chargeLimitPct: number | null;
   solarAware?: boolean;
+  allowSolar?: boolean;
 }
 
 // ---- Notification Types ----

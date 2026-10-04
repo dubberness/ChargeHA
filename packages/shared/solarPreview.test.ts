@@ -260,6 +260,7 @@ describe("previewSolarAllocation", () => {
       scheduleType: "blockout",
       startTime: "15:00",
       endTime: "21:00",
+      allowSolar: false,
       days: ["mon"],
       enabled: true,
     };

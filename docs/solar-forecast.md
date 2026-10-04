@@ -192,7 +192,8 @@ would get, following the same rules as solar tracking:
 - nothing when production is under **minimum solar generation**, or what is left
   is under the car's minimum amps (or **minimum excess solar**);
 - no more than the car's maximum amps;
-- nothing while a blockout is active.
+- nothing while a blockout is active — unless it allows solar, when the car gets
+  true surplus less the 0.3 kW cushion.
 
 "At least" uses the low end of the forecast range.
 

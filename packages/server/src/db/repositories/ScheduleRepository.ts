@@ -14,6 +14,7 @@ export class ScheduleRepository {
       ...row,
       days: parseDays(row.daysJson),
       solarAware: row.solarAware === 1,
+      allowSolar: row.allowSolar === 1,
       enabled: row.enabled === 1,
     } as unknown as ScheduleRow;
   }
@@ -47,6 +48,7 @@ export class ScheduleRepository {
       chargeAmps: input.chargeAmps,
       chargeLimitPct: input.chargeLimitPct,
       solarAware: input.solarAware ? 1 : 0,
+      allowSolar: input.allowSolar ? 1 : 0,
       enabled: input.enabled !== false ? 1 : 0,
     });
   }
@@ -69,6 +71,9 @@ export class ScheduleRepository {
     }
     if (input.solarAware !== undefined) {
       set.solarAware = input.solarAware ? 1 : 0;
+    }
+    if (input.allowSolar !== undefined) {
+      set.allowSolar = input.allowSolar ? 1 : 0;
     }
     if (input.enabled !== undefined) set.enabled = input.enabled ? 1 : 0;
 

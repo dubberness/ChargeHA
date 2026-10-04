@@ -50,6 +50,7 @@ export interface ScheduleRow {
   chargeAmps: number | null;
   chargeLimitPct: number | null;
   solarAware: boolean;
+  allowSolar: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -66,6 +67,7 @@ export interface CreateScheduleInput {
   chargeAmps: number | null;
   chargeLimitPct: number | null;
   solarAware?: boolean;
+  allowSolar?: boolean;
   enabled?: boolean;
 }
 

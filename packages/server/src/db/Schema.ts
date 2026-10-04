@@ -108,6 +108,9 @@ export const schedules = sqliteTable("schedules", {
   // 1: lower the limit by the solar the car should get before the
   // schedule next runs (see docs/solar-forecast.md).
   solarAware: integer("solar_aware").notNull().default(0),
+  // 1: a blockout that still lets solar charge the car (see
+  // docs/charge-controller.md).
+  allowSolar: integer("allow_solar").notNull().default(0),
   enabled: integer("enabled").notNull().default(1),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),

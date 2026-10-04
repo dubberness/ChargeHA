@@ -258,6 +258,33 @@ describe("SolarChargePlanner", () => {
 
       expect(planned?.effective.chargeLimitPct).toBe(55);
     });
+
+    it("counts solar during a blockout that allows it, less the cushion", async () => {
+      await chargingHistory();
+      await sun("2026-09-29T10:00:00Z", "2026-09-29T12:00:00Z");
+      const blockout: EngineSchedule = {
+        ...overnight(false),
+        id: "b1",
+        vehicleId: null,
+        scheduleType: "blockout",
+        startTime: "10:00",
+        endTime: "11:00",
+        chargeAmps: null,
+        chargeLimitPct: null,
+        allowSolar: true,
+      };
+      const schedules = [overnight(true), blockout];
+
+      const planned = await planner.planSchedule(
+        active(schedules),
+        target,
+        schedules,
+        state,
+      );
+
+      // 2.7 kW for the blockout hour, then 3 kW: 5.7 kWh, 9% of the battery.
+      expect(planned?.effective.chargeLimitPct).toBe(51);
+    });
   });
 
   describe("projections", () => {

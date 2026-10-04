@@ -90,6 +90,16 @@ function useHeadline(): StatusHeadline | null {
   return statusHeadline(points, split, statuses, realtime);
 }
 
+function scheduleTypeLabel(
+  s: { scheduleType: "charge" } | {
+    scheduleType: "blockout";
+    allowSolar: boolean;
+  },
+): string {
+  if (s.scheduleType === "charge") return "Charge";
+  return s.allowSolar ? "Solar-only blockout" : "Blockout";
+}
+
 function useActiveScheduleLines(): string[] | null {
   const { vehicles } = useVehicles();
   const { data: activeSchedules = [] } = trpc.schedule.active.useQuery(
@@ -99,7 +109,7 @@ function useActiveScheduleLines(): string[] | null {
   return useMemo(() => {
     if (activeSchedules.length === 0) return null;
     return activeSchedules.map((s) => {
-      const type = s.scheduleType === "blockout" ? "Blockout" : "Charge";
+      const type = scheduleTypeLabel(s);
       const vehicleName = s.vehicleId
         ? vehicles.find((v) => v.id === s.vehicleId)?.name ?? "Vehicle"
         : "All vehicles";

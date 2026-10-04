@@ -1,0 +1,1 @@
+ALTER TABLE `schedules` ADD `allow_solar` integer DEFAULT 0 NOT NULL;

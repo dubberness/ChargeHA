@@ -80,6 +80,7 @@ export function buildBlockoutSchedule(
     startTime: "18:00",
     endTime: "21:00",
     days: ["mon", "tue", "wed", "thu", "fri"],
+    allowSolar: false,
     enabled: true,
     ...overrides,
   };

@@ -160,12 +160,15 @@ const chargeVehicles = (
   schedules: DemoSchedule[],
   now: Date,
 ): ChargeResult => {
-  const blocked = schedules.some((s) =>
+  const blockouts = schedules.filter((s) =>
     s.scheduleType === "blockout" && isActiveNow(s, now)
   );
+  // A blockout that allows solar holds back charge windows, not solar.
+  const blocked = blockouts.some((s) => !s.allowSolar);
   const chargeWindow = (id: string): DemoSchedule | undefined =>
     schedules.find((s) =>
-      s.scheduleType === "charge" && s.vehicleId === id && isActiveNow(s, now)
+      blockouts.length === 0 && s.scheduleType === "charge" &&
+      s.vehicleId === id && isActiveNow(s, now)
     );
 
   const byPriority = [...vehicles].sort((a, b) => a.priority - b.priority);

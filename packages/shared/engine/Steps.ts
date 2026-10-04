@@ -2,6 +2,7 @@ import type { EnergyData, VehicleChargeState } from "../types.ts";
 import { scheduleLimitReached } from "./Schedules.ts";
 import type { ActiveChargeSchedule } from "./Schedules.ts";
 import { SolarAllocator } from "./SolarAllocator.ts";
+import { SOLAR_ONLY } from "./SolarOnly.ts";
 import type { SolarTargets } from "./SolarAllocator.ts";
 import { Trace } from "./Trace.ts";
 import type { StepTrace } from "./Trace.ts";
@@ -145,6 +146,10 @@ export class Steps {
 
   static blockout({ state, activeBlockout }: StepContext): EvalResult {
     if (!activeBlockout) return pass([Trace.blockoutNone()]);
+    // Solar may still charge the car; the later steps keep the grid out.
+    if (activeBlockout.allowSolar) {
+      return pass([Trace.blockoutSolarOnly(activeBlockout)]);
+    }
     return {
       decision: {
         action: state.isCharging ? "stop" : "none",
@@ -162,10 +167,15 @@ export class Steps {
     };
   }
 
-  static chargeSchedule({ vehicle, state }: StepContext): EvalResult {
+  static chargeSchedule(
+    { vehicle, state, activeBlockout }: StepContext,
+  ): EvalResult {
     const active = vehicle.activeSchedule;
     if (!active) return pass([Trace.scheduleNone()]);
     const effective = active.effective;
+    // Only a blockout that allows solar gets this far, and a charge schedule
+    // would draw from the grid.
+    if (activeBlockout) return pass([Trace.scheduleBlocked(effective)]);
 
     if (scheduleLimitReached(active, state.batteryLevel) !== undefined) {
       return pass([
@@ -440,17 +450,41 @@ export class Steps {
     };
   }
 
+  // A solar-only blockout starts a charge only once the surplus has held for
+  // a while, so a patchy sky leaves the car off instead of cycling it.
+  static steadySolar(
+    { state, activeBlockout, timestamp, cs, solar }: StepContext,
+  ): EvalResult {
+    if (!solar || !activeBlockout?.allowSolar || state.isCharging) {
+      return pass();
+    }
+    const since = cs.solarReadySince ?? timestamp;
+    const elapsedSec = Math.round((timestamp - since) / 1000);
+    const settleSec = SOLAR_ONLY.startSettleSeconds;
+    if (elapsedSec >= settleSec) {
+      return pass([Trace.steadySolarOk(elapsedSec, settleSec)]);
+    }
+    return {
+      decision: {
+        action: "none",
+        reason: "solar_tracking",
+        detail:
+          `Waiting for steady solar (${elapsedSec}s/${settleSec}s) — blockout allows solar only`,
+        targetAmps: null,
+      },
+      trace: [Trace.steadySolarWaiting(elapsedSec, settleSec)],
+      stateUpdates: { ...graceReset(), solarReadySince: since },
+    };
+  }
+
   static sufficientSolar(
-    { state, config, timestamp, cs, solar }: StepContext,
+    { state, config, activeBlockout, timestamp, cs, solar }: StepContext,
   ): EvalResult {
     if (!solar) return pass();
-    const debounce = Steps.debounceAmps(
-      state,
-      cs,
-      config,
-      solar.clampedAmps,
-      timestamp,
-    );
+    const settle = activeBlockout?.allowSolar
+      ? Steps.rampAmps
+      : Steps.debounceAmps;
+    const debounce = settle(state, cs, config, solar.clampedAmps, timestamp);
     const amps = debounce.amps;
     const trace = amps !== solar.clampedAmps
       ? [Trace.ampDebounce(amps, solar.clampedAmps)]
@@ -568,6 +602,39 @@ export class Steps {
       pendingAmps: cs.pendingAmps,
       pendingSince: cs.pendingSince,
     };
+  }
+
+  // Amp changes under a solar-only blockout: down at once, up only to a
+  // level the surplus has held for the whole settle time.
+  private static rampAmps(
+    state: VehicleChargeState,
+    cs: Readonly<VehicleControlState>,
+    config: ControllerConfig,
+    targetAmps: number,
+    timestamp: number,
+  ): DebounceResult {
+    const currentAmps = state.chargeAmps;
+    if (!state.isCharging || targetAmps <= currentAmps) {
+      return { amps: targetAmps, pendingAmps: null, pendingSince: null };
+    }
+    const { pendingAmps, pendingSince } = cs;
+    const waiting = pendingAmps !== null && pendingSince !== null &&
+      pendingAmps > currentAmps;
+    if (!waiting) {
+      return {
+        amps: currentAmps,
+        pendingAmps: targetAmps,
+        pendingSince: timestamp,
+      };
+    }
+    // The lowest target seen since the surplus first rose above the current
+    // amps — the level it has actually held.
+    const heldAmps = Math.min(pendingAmps, targetAmps);
+    const settleMs = config.ampDebounceSettleMinutes * 60_000;
+    if (timestamp - pendingSince >= settleMs) {
+      return { amps: heldAmps, pendingAmps: null, pendingSince: null };
+    }
+    return { amps: currentAmps, pendingAmps: heldAmps, pendingSince };
   }
 
   // Suffix appended to a schedule decision's detail when two or more

@@ -38,6 +38,7 @@ export const toSchedule = (r: DemoSchedule) => {
     vehicleId: null,
     chargerId: null,
     scheduleType: "blockout" as const,
+    allowSolar: r.allowSolar ?? false,
   };
 };
 

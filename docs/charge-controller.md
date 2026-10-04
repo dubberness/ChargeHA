@@ -82,7 +82,9 @@ overrides.
 This is where the main logic lives. The checks run in priority order:
 
 1. **Blockout schedule** — If an active blockout schedule covers the current
-   time, stop charging. Blockout schedules apply to all charging points.
+   time, stop charging. Blockout schedules apply to all charging points. A
+   blockout set to allow solar does not stop here — see
+   [Blockouts that allow solar](#blockouts-that-allow-solar).
 
 2. **Charge schedule** — If an active charge schedule applies (targeting this
    charging point directly, its linked vehicle, or everything when untargeted),
@@ -188,6 +190,47 @@ never depends on the order the database returned the rows in.
    also matches the same time.
 3. Overlapping a blockout with a charge schedule is a configuration mistake; the
    blockout always takes priority.
+
+### Blockouts that allow solar
+
+A blockout can be set to **allow solar charging**. It is for a peak tariff
+window that still has sun in it: the car may take spare solar, and nothing from
+the grid.
+
+1. Charge schedules are still held back for the whole window.
+2. Solar tracking carries on, but under tighter rules than usual, because every
+   kWh that leaks in from the grid is bought at the peak rate:
+
+| Rule             | Normal tracking                  | Solar-only blockout                                              |
+| ---------------- | -------------------------------- | ---------------------------------------------------------------- |
+| Starting         | As soon as the surplus is enough | Only after the surplus has held for 3 minutes                    |
+| Surplus counted  | All of it, less the margin       | Less a 0.3 kW cushion that is left exporting                     |
+| Lowering amps    | Small changes wait to settle     | At once                                                          |
+| Raising amps     | Large changes at once            | Only to the level the surplus has held for a minute              |
+| Cooldown         | `cooldown_period_minutes`        | 5 minutes, then the wait to start again                          |
+| Solar runs short | Grace period (default 6 minutes) | Minimum amps for up to 30 seconds, then stop                     |
+| Mode             | `solar_only` or `solar_grid`     | Always `solar_only`, on `excess`                                 |
+| Controller loop  | `controller_loop_seconds`        | Every 10 seconds while a car is charging, except after a command |
+
+3. The cushion only governs starting and how far above minimum amps to go. A car
+   already charging keeps its minimum amps for as long as solar covers them — it
+   is only short once the cushion is used up.
+4. The 30 seconds are not there to ride out a cloud. They give the car time to
+   act on the drop to minimum amps before the meter is read again, so its own
+   ramp-down is not mistaken for a shortfall.
+5. After a stop comes a 5 minute cooldown, then the 3 minute wait again. On a
+   patchy day the car mostly stays off, by design.
+6. A larger configured `solar_margin_kw` replaces the cushion. A configured
+   grace period, cooldown or amp settle time that is already shorter is kept.
+7. When blockouts overlap, one that blocks everything wins.
+8. No low-solar notification is sent; the stop notification follows within
+   seconds anyway.
+
+It cannot promise zero grid use. A cloud is faster than the meter, the loop and
+the car put together, so each dip can still cost a few seconds of import. The
+rules above keep that to seconds rather than minutes.
+
+The values live in `shared/engine/SolarOnly.ts`.
 
 ## Solar tracking
 
@@ -468,6 +511,7 @@ The engine tracks in-memory state per vehicle (not persisted to DB):
 | `allocatedAmps`          | Pre-computed solar allocation for this vehicle (set each loop)          |
 | `pendingAmps`            | Debounced target amps waiting to settle                                 |
 | `pendingSince`           | Timestamp when pendingAmps was first seen                               |
+| `solarReadySince`        | When a solar-only blockout first saw enough surplus to start a charge   |
 
 This state is lost on server restart, which is safe — grace periods, cooldowns,
 and debounce state will simply reset.

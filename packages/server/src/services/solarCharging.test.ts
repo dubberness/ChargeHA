@@ -34,6 +34,20 @@ describe("solarCharging", () => {
       expect(carSolarW(3000, 500, rules())).toBe(2500);
     });
 
+    it("holds back the cushion under a solar-only blockout", () => {
+      expect(carSolarW(3000, 500, rules(), true)).toBe(2200);
+    });
+
+    it("counts house load under a solar-only blockout even on gross", () => {
+      const gross = rules({ reference: "gross" });
+      expect(carSolarW(3000, 500, gross)).toBe(3000);
+      expect(carSolarW(3000, 500, gross, true)).toBe(2200);
+    });
+
+    it("keeps a configured margin larger than the cushion", () => {
+      expect(carSolarW(3000, 500, rules({ marginW: 600 }), true)).toBe(1900);
+    });
+
     it("stops at the charger's maximum", () => {
       expect(carSolarW(6000, 500, rules())).toBe(3680);
     });
@@ -87,6 +101,22 @@ describe("solarCharging", () => {
         ms("2026-09-28T01:30:00Z"),
       );
       expect(result.wh).toBe(625);
+    });
+
+    it("holds back the cushion in solar-only periods", () => {
+      const solarOnly = rules({
+        solarOnlyAt: (t) => t < ms("2026-09-28T01:30:00Z"),
+      });
+      const all = solarToCar(periods, (p) => p.pvW, house, rules(), from, to);
+      const result = solarToCar(
+        periods,
+        (p) => p.pvW,
+        house,
+        solarOnly,
+        from,
+        to,
+      );
+      expect(all.wh - result.wh).toBe(150);
     });
 
     it("skips blocked periods", () => {

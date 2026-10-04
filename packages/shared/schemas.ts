@@ -271,6 +271,7 @@ export const scheduleCreateInput: z.ZodType<{
   chargeAmps?: number | undefined;
   chargeLimitPct?: number | undefined;
   solarAware?: boolean | undefined;
+  allowSolar?: boolean | undefined;
 }> = z.object({
   scheduleType: scheduleTypeSchema,
   startTime: timeStringSchema,
@@ -281,6 +282,7 @@ export const scheduleCreateInput: z.ZodType<{
   chargeAmps: z.number().min(1).optional(),
   chargeLimitPct: z.number().min(1).max(100).optional(),
   solarAware: z.boolean().optional(),
+  allowSolar: z.boolean().optional(),
 }).refine((v) => v.vehicleId == null || v.chargerId == null, {
   message: "a schedule targets a vehicle or a charger, not both",
 });
@@ -297,6 +299,7 @@ export const scheduleUpdateInput: z.ZodType<{
   chargeAmps?: number | undefined;
   chargeLimitPct?: number | undefined;
   solarAware?: boolean | undefined;
+  allowSolar?: boolean | undefined;
   enabled?: boolean | undefined;
 }> = z.object({
   id: z.string(),
@@ -309,6 +312,7 @@ export const scheduleUpdateInput: z.ZodType<{
   chargeAmps: z.number().min(1).optional(),
   chargeLimitPct: z.number().min(1).max(100).optional(),
   solarAware: z.boolean().optional(),
+  allowSolar: z.boolean().optional(),
   enabled: z.boolean().optional(),
 }).refine((v) => v.vehicleId == null || v.chargerId == null, {
   message: "a schedule targets a vehicle or a charger, not both",

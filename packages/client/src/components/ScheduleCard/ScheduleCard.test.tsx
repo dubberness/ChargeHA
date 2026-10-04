@@ -32,6 +32,7 @@ describe("ScheduleCard", () => {
     startTime: "14:00",
     endTime: "18:00",
     days: ["sat", "sun"],
+    allowSolar: false,
     enabled: true,
   };
 
@@ -65,6 +66,20 @@ describe("ScheduleCard", () => {
       expect(
         screen.getByText(/Charge at 16A to 80%, less expected solar/),
       ).toBeInTheDocument();
+    });
+
+    it("says when a blockout still allows solar charging", () => {
+      renderWithProviders(
+        <ScheduleCard
+          schedule={{ ...blockoutSchedule, allowSolar: true }}
+          {...defaultHandlers}
+        />,
+      );
+
+      expect(
+        screen.getByText("Solar charging only, nothing from the grid"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Stop all charging")).not.toBeInTheDocument();
     });
 
     it("renders blockout schedule", () => {
