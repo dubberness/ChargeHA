@@ -26,6 +26,9 @@ import type { ChargerPluginRegistry } from "../bootstrap/ChargerPluginRegistry.t
 import { UnconfiguredChargerMiddleware } from "./UnconfiguredChargerMiddleware.ts";
 
 const MAX_COMMAND_BACKOFF_SEC = 900;
+// A car's API can accept an amps command that the car then drops (a car still
+// ramping often does). After this long the command is sent again.
+const RESEND_UNAPPLIED_AMPS_MS = 60_000;
 
 const watts = (kw: number | null | undefined): number => (kw ?? 0) * 1000;
 
@@ -38,6 +41,7 @@ interface ChargerEntry {
   // What we last asked for — the engine compares against this, not the
   // measured draw, so a car taking fewer amps never triggers re-commands.
   lastCommandedAmps?: number | null;
+  lastCommandedAtMs?: number;
   // Set when a passive point has been given its standing permission for the
   // current plug-in. Cleared on unplug and when control comes back.
   heldOpen?: boolean;
@@ -400,7 +404,7 @@ export class ChargingPointManager {
       );
       // Switch chargers never receive amp commands.
       const alreadyCommanded = entry.lastCommandedAmps === clamped &&
-        state.isCharging;
+        state.isCharging && !this.ampsCommandDropped(entry, state, clamped);
       const ampsNeeded = state.controlMode === "amps" && !alreadyCommanded &&
         state.chargeAmps !== clamped;
       const sendAmps = () =>
@@ -424,6 +428,9 @@ export class ChargingPointManager {
       } else if (!ampsOk) {
         throw new Error(`setChargeAmps(${clamped}) rejected`);
       }
+      if (ampsNeeded || entry.lastCommandedAmps !== clamped) {
+        entry.lastCommandedAtMs = Date.now();
+      }
       entry.lastCommandedAmps = clamped;
       await this.resetCommandBackoff(id);
       return { success: true };
@@ -434,6 +441,21 @@ export class ChargingPointManager {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  // A vehicle_api point reports the car's own amps setting, not a measured
+  // draw, so a setting still off target a while after the command means the
+  // car dropped it. Smart chargers report measured draw, where a car taking
+  // fewer amps is normal and must not trigger re-commands.
+  private ampsCommandDropped(
+    entry: ChargerEntry,
+    state: ChargerState,
+    amps: number,
+  ): boolean {
+    if (entry.row.kind !== "vehicle_api") return false;
+    if (state.chargeAmps === amps) return false;
+    const sentAt = entry.lastCommandedAtMs ?? 0;
+    return Date.now() - sentAt >= RESEND_UNAPPLIED_AMPS_MS;
   }
 
   async stopCharging(
