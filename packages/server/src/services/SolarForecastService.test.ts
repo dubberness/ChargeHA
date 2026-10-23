@@ -9,6 +9,7 @@ import { AppDatabase } from "../db/AppDatabase.ts";
 import { Logger } from "../lib/Logger.ts";
 import {
   FORECAST_API_KEY,
+  FORECAST_API_KEY_FOR,
   parseSiteIds,
   SolarForecastService,
   sumSites,
@@ -42,17 +43,21 @@ class FakeLocalProvider implements SolarForecastProvider {
   readonly id = "homeassistant" as const;
   readonly displayName = "Home Assistant";
   seen: Array<ForecastProviderOptions | undefined> = [];
+  // "token @ address" for every call, to check where a token went.
+  sent: string[] = [];
   constructor(public periods: SolarForecastPeriod[]) {}
-  listSites(_token: string, options?: ForecastProviderOptions) {
+  listSites(token: string, options?: ForecastProviderOptions) {
     this.seen.push(options);
+    this.sent.push(`${token} @ ${options?.baseUrl}`);
     return Promise.resolve([{ id: "all", name: "HA", capacityKw: null }]);
   }
   fetchForecast(
-    _token: string,
+    token: string,
     _siteId: string,
     options?: ForecastProviderOptions,
   ) {
     this.seen.push(options);
+    this.sent.push(`${token} @ ${options?.baseUrl}`);
     return Promise.resolve(this.periods);
   }
 }
@@ -265,6 +270,27 @@ describe("SolarForecastService", () => {
       );
     });
 
+    it("needs the key again for a different provider", async () => {
+      const local = new FakeLocalProvider([]);
+      const service = new SolarForecastService(
+        db,
+        [fakeProvider(), local],
+        new Logger("test", "error"),
+        () => nowMs,
+      );
+      await service.saveSettings({ forecastProvider: "solcast", apiKey: "k1" });
+
+      await service.saveSettings({
+        forecastProvider: "homeassistant",
+        forecastBaseUrl: "http://ha.local:8123",
+      });
+
+      expect((await service.getStatus()).apiKeySet).toBe(false);
+      expect((await service.testKey()).error).toBe("Enter an API key");
+      expect((await service.refresh()).success).toBe(false);
+      expect(local.sent).toEqual([]);
+    });
+
     it("fails a key with no sites", async () => {
       const provider = fakeProvider();
       provider.sites = [];
@@ -337,9 +363,73 @@ describe("SolarForecastService", () => {
       const { service } = await setupLocal();
       await service.refresh();
 
-      await service.saveSettings({ forecastBaseUrl: "http://other:8123" });
+      await service.saveSettings({
+        forecastBaseUrl: "http://other:8123",
+        apiKey: "new-token",
+      });
 
       expect((await service.getStatus()).lastFetchAt).toBeNull();
+      expect(await service.refresh()).toEqual({ success: true });
+    });
+
+    it("tests the saved token only at the saved address", async () => {
+      const { service, provider } = await setupLocal();
+
+      const elsewhere = await service.testKey(
+        undefined,
+        "homeassistant",
+        "http://elsewhere:8123",
+      );
+      const saved = await service.testKey(
+        undefined,
+        "homeassistant",
+        "ha.local:8123/",
+      );
+
+      expect(elsewhere).toEqual({ success: false, error: "Enter an API key" });
+      expect(saved.success).toBe(true);
+      expect(provider.sent).toEqual(["token @ ha.local:8123/"]);
+    });
+
+    it("needs the token again once the address changes", async () => {
+      const { service, provider } = await setupLocal();
+
+      await service.saveSettings({ forecastBaseUrl: "http://elsewhere:8123" });
+
+      expect((await service.getStatus()).apiKeySet).toBe(false);
+      expect((await service.refresh()).success).toBe(false);
+      expect(provider.sent).toEqual([]);
+    });
+
+    it("never sends the token to an address set another way", async () => {
+      const { service, provider } = await setupLocal();
+
+      await db.setConfig("forecast_base_url", "http://elsewhere:8123");
+      await service.tick();
+
+      expect((await service.getStatus()).nextFetchAt).toBeNull();
+      expect((await service.refresh()).success).toBe(false);
+      expect(provider.sent).toEqual([]);
+    });
+
+    it("ties a token saved before tokens had an address to the saved one", async () => {
+      const { service, provider } = await setupLocal();
+      await db.storeSecret(FORECAST_API_KEY_FOR, null);
+      await db.storeSecret(FORECAST_API_KEY, "older-token");
+
+      await service.bindUnboundKey();
+      await db.setConfig("forecast_base_url", "http://elsewhere:8123");
+      await service.testKey(
+        undefined,
+        "homeassistant",
+        "http://elsewhere:8123",
+      );
+      await db.setConfig("forecast_base_url", "http://ha.local:8123");
+
+      expect(await service.refresh()).toEqual({ success: true });
+      expect(new Set(provider.sent)).toEqual(
+        new Set(["older-token @ http://ha.local:8123"]),
+      );
     });
   });
 
