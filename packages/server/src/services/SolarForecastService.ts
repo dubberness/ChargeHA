@@ -12,6 +12,7 @@ import {
 import {
   bucketForecastWh,
   effectiveForecastW,
+  forecastKeyDestination,
   type ForecastProviderId,
   isLocalForecastProvider,
   localMidnightUtcMs,
@@ -35,6 +36,9 @@ import { activeFactors, applyCorrection } from "./forecastLearning.ts";
 
 // Secret, so it lives outside forecastConfigDef and never reaches the client.
 export const FORECAST_API_KEY = "forecast_api_key";
+// Where the saved key may be sent (see forecastKeyDestination). Kept beside
+// the key, outside the config sections, so config.set cannot move it.
+export const FORECAST_API_KEY_FOR = "forecast_api_key_for";
 
 const DAY_MS = 86_400_000;
 const TICK_MS = 60_000;
@@ -72,6 +76,10 @@ const utcDate = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
 const addDays = (date: string, days: number): string =>
   utcDate(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS);
+
+// Where a key saved with these settings may be sent.
+const keyDestination = (config: ForecastConfig): string =>
+  forecastKeyDestination(config.forecastProvider, config.forecastBaseUrl);
 
 const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
@@ -127,7 +135,7 @@ export class SolarForecastService {
   start(): void {
     if (this.timer !== null) return;
     this.timer = setInterval(() => void this.tick(), TICK_MS);
-    void this.tick();
+    void this.bindUnboundKey().then(() => this.tick());
     this.learner?.start();
   }
 
@@ -168,7 +176,11 @@ export class SolarForecastService {
       ),
     );
     if (apiKey !== undefined) {
-      await this.db.storeSecret(FORECAST_API_KEY, apiKey.trim() || null);
+      // A key is saved for the provider and address saved with it.
+      const key = apiKey.trim() || null;
+      const savedFor = key ? keyDestination(await this.getConfig()) : null;
+      await this.db.storeSecret(FORECAST_API_KEY_FOR, savedFor);
+      await this.db.storeSecret(FORECAST_API_KEY, key);
     }
     const sourceKeys = [
       "forecastProvider",
@@ -199,12 +211,12 @@ export class SolarForecastService {
       const provider = providerId
         ? this.providers.get(providerId) ?? null
         : await this.activeProvider();
-      const key = apiKey?.trim() || await this.db.readSecret(FORECAST_API_KEY);
       if (!provider) return { success: false, error: "Choose a provider" };
+      const address = baseUrl ?? (await this.getConfig()).forecastBaseUrl;
+      const key = apiKey?.trim() ||
+        await this.savedKeyFor(forecastKeyDestination(provider.id, address));
       if (!key) return { success: false, error: "Enter an API key" };
-      const sites = await provider.listSites(key, {
-        baseUrl: baseUrl ?? (await this.getConfig()).forecastBaseUrl,
-      });
+      const sites = await provider.listSites(key, { baseUrl: address });
       if (sites.length === 0) {
         return {
           success: false,
@@ -217,12 +229,44 @@ export class SolarForecastService {
     }
   }
 
+  // A key saved before keys were tied to a destination belongs to the
+  // settings it was saved with.
+  async bindUnboundKey(): Promise<void> {
+    try {
+      const [key, savedFor] = await Promise.all([
+        this.db.readSecret(FORECAST_API_KEY),
+        this.db.readSecret(FORECAST_API_KEY_FOR),
+      ]);
+      if (!key || savedFor !== null) return;
+      await this.db.storeSecret(
+        FORECAST_API_KEY_FOR,
+        keyDestination(await this.getConfig()),
+      );
+    } catch (err) {
+      this.logger.error("Solar forecast key check failed:", err);
+    }
+  }
+
+  // The saved key, but only for where it was saved for, so a changed
+  // provider or address is never sent a key meant for another.
+  private async savedKeyFor(destination: string): Promise<string | null> {
+    const [key, savedFor] = await Promise.all([
+      this.db.readSecret(FORECAST_API_KEY),
+      this.db.readSecret(FORECAST_API_KEY_FOR),
+    ]);
+    return key && destination && savedFor === destination ? key : null;
+  }
+
+  private savedKey(config: ForecastConfig): Promise<string | null> {
+    return this.savedKeyFor(keyDestination(config));
+  }
+
   // ── Status ───────────────────────────────────────────────────────────
 
   async getStatus(): Promise<SolarForecastStatus> {
-    const [config, apiKey, state, next, learning] = await Promise.all([
-      this.getConfig(),
-      this.db.readSecret(FORECAST_API_KEY),
+    const config = await this.getConfig();
+    const [apiKey, state, next, learning] = await Promise.all([
+      this.savedKey(config),
       this.getState(),
       this.nextFetchMs(),
       readLearningState(this.db),
@@ -256,11 +300,11 @@ export class SolarForecastService {
   }
 
   private async fetchAndStore(): Promise<ForecastRefreshResult> {
-    const [provider, apiKey, config] = await Promise.all([
+    const [provider, config] = await Promise.all([
       this.activeProvider(),
-      this.db.readSecret(FORECAST_API_KEY),
       this.getConfig(),
     ]);
+    const apiKey = await this.savedKey(config);
     if (!provider || !apiKey) {
       return { success: false, error: "Solar forecast is not set up" };
     }
@@ -337,12 +381,12 @@ export class SolarForecastService {
   // ── Scheduling ───────────────────────────────────────────────────────
 
   private async nextFetchMs(): Promise<number | null> {
-    const [provider, apiKey, config, state] = await Promise.all([
+    const [provider, config, state] = await Promise.all([
       this.activeProvider(),
-      this.db.readSecret(FORECAST_API_KEY),
       this.getConfig(),
       this.getState(),
     ]);
+    const apiKey = await this.savedKey(config);
     if (!provider || !apiKey) return null;
     const nowMs = this.now();
     const periods = await this.db.forecasts.getPeriods(

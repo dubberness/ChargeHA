@@ -1,6 +1,7 @@
-import type {
-  SolarForecastPeriod,
-  SolarForecastSite,
+import {
+  normaliseForecastAddress,
+  type SolarForecastPeriod,
+  type SolarForecastSite,
 } from "@chargeha/shared/solarForecast";
 import {
   ForecastAuthError,
@@ -38,9 +39,9 @@ interface HaForecastRow {
 
 // "homeassistant.local:8123/" → "http://homeassistant.local:8123"
 export function normaliseBaseUrl(raw: string | undefined): string {
-  const trimmed = (raw ?? "").trim().replace(/\/+$/, "");
-  if (!trimmed) throw new Error("Enter Home Assistant's address");
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  const url = normaliseForecastAddress(raw);
+  if (!url) throw new Error("Enter Home Assistant's address");
+  return url;
 }
 
 // The integration reports kW, keyed by the start of each period. Periods

@@ -274,6 +274,36 @@ describe("SolarForecastSettings", () => {
       );
     });
 
+    it("asks for the token again when the address changes", () => {
+      withStatus(haStatus());
+      renderWithProviders(<SolarForecastSettings />);
+
+      expect(screen.queryByLabelText("Home Assistant access token")).not
+        .toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Home Assistant address"), {
+        target: { value: "http://10.0.0.5:8123" },
+      });
+
+      expect(screen.getByLabelText("Home Assistant access token"))
+        .toBeInTheDocument();
+      expect(screen.getByText("Enter the token again for this address."))
+        .toBeInTheDocument();
+      expect(screen.queryByText("Replace")).not.toBeInTheDocument();
+    });
+
+    it("keeps the saved token for the same address written differently", () => {
+      withStatus(haStatus());
+      renderWithProviders(<SolarForecastSettings />);
+
+      fireEvent.change(screen.getByLabelText("Home Assistant address"), {
+        target: { value: "ha.local:8123/" },
+      });
+
+      expect(screen.queryByLabelText("Home Assistant access token")).not
+        .toBeInTheDocument();
+      expect(screen.getByText("Replace")).toBeInTheDocument();
+    });
+
     it("leaves the request count out of the status line", () => {
       expect(statusLine(haStatus({ usedToday: 0 }))).toBe("Not updated yet");
     });
