@@ -13,6 +13,7 @@ import {
   FORECAST_PROVIDER_NAMES,
   FORECAST_PROVIDERS,
   type ForecastCorrection,
+  forecastKeyDestination,
   type ForecastProviderId,
   isLocalForecastProvider,
   type PanelCheck,
@@ -336,8 +337,13 @@ function ApiKeyRows(
     update: UpdateDraft;
   },
 ) {
-  const editingKey = draft.apiKey !== null || !status.apiKeySet;
   const local = isLocalForecastProvider(provider);
+  // The server only sends a saved key where it was saved for, so a new
+  // provider or address needs it typed again.
+  const moved = forecastKeyDestination(provider, draft.baseUrl) !==
+    forecastKeyDestination(status.provider, status.baseUrl);
+  const keySaved = status.apiKeySet && !moved;
+  const editingKey = draft.apiKey !== null || !keySaved;
   return (
     <>
       {local && (
@@ -360,7 +366,14 @@ function ApiKeyRows(
           ? "A long-lived access token: your Home Assistant profile → Security. Stored encrypted when ENCRYPTION_KEY is set."
           : "Your Solcast account → API Key. Stored encrypted when ENCRYPTION_KEY is set."}
       >
-        {status.apiKeySet && (
+        {status.apiKeySet && moved && (
+          <Text size="1" color="gray">
+            {local
+              ? "Enter the token again for this address."
+              : "Enter the key again for this provider."}
+          </Text>
+        )}
+        {keySaved && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Badge color="green" size="1">
               <KeyRound size={10} /> Saved

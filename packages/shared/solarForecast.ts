@@ -20,6 +20,27 @@ export const isLocalForecastProvider = (
   id: ForecastProviderId | "" | null,
 ): boolean => !!id && LOCAL_FORECAST_PROVIDERS.includes(id);
 
+// "homeassistant.local:8123/" → "http://homeassistant.local:8123". Blank stays
+// blank.
+export function normaliseForecastAddress(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+}
+
+// Where a saved key is sent: the provider, and for a local provider its
+// address too. A saved key only ever goes where it was saved for, so a new
+// provider or address needs the key typed again.
+export function forecastKeyDestination(
+  provider: ForecastProviderId | "" | null,
+  baseUrl: string | undefined,
+): string {
+  if (!provider) return "";
+  return isLocalForecastProvider(provider)
+    ? `${provider} ${normaliseForecastAddress(baseUrl)}`
+    : provider;
+}
+
 // One forecast period. Power is the average over the period, in watts.
 // pvW10/pvW90 are the 10th/90th percentile — a cloudy and a clear outcome.
 export interface SolarForecastPeriod {
