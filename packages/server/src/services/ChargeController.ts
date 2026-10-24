@@ -80,7 +80,7 @@ interface ControlTarget {
   stop(ctx: CallContext, state: VehicleChargeState): Promise<unknown>;
 }
 
-type SchedulePlanner = Pick<SolarChargePlanner, "planSchedule">;
+export type SchedulePlanner = Pick<SolarChargePlanner, "planSchedule">;
 type ScheduleRows = Awaited<ReturnType<AppDatabase["getSchedules"]>>;
 
 // A target paired with the engine input built from it this loop.
@@ -175,41 +175,13 @@ export class ChargeController {
 
     // Request fresh state for each target via its middleware
     const loopTargets: LoopTarget[] = await Promise.all(
-      targets.map(async (target): Promise<LoopTarget> => {
-        const activeCharge = await this.activeChargeFor(
-          target,
-          schedules,
-          now,
-          config.timezone,
-        );
-        const isStopped = target.mode === "stop";
-        // allocatedAmps === 0 means the allocator ran and a higher priority
-        // took everything — see VehicleControlState.allocatedAmps
-        const solarTakenByHigherPriority =
-          this.engine.getControlState(target.id).allocatedAmps === 0;
-        await target.requestState({
-          origin: "controller",
+      targets.map((target) =>
+        this.prepareTarget(target, schedules, now, config.timezone, {
           traceId,
-          hasSolar: hasSolar && !isStopped && !solarTakenByHigherPriority,
-          hasSchedule: activeCharge !== null || hasBlockout,
+          hasSolar,
           hasBlockout,
-          scheduleChargeLimitPct: activeCharge?.effective.chargeLimitPct ??
-            null,
-        });
-        const state = await target.getState();
-        return {
-          target,
-          vehicle: {
-            id: target.id,
-            vehicleId: target.vehicleId,
-            name: target.name,
-            mode: target.mode,
-            priority: target.priority,
-            state,
-            activeSchedule: activeCharge,
-          },
-        };
-      }),
+        })
+      ),
     );
 
     await this.refreshUnlinkedVehicles(targets, traceId, hasSolar, hasBlockout);
@@ -473,6 +445,56 @@ export class ChargeController {
     };
   }
 
+  // Plans the target's schedule, requests fresh state and builds its
+  // engine input for this loop.
+  private async prepareTarget(
+    target: ControlTarget,
+    schedules: ScheduleRows,
+    now: Date,
+    timezone: string,
+    loop: { traceId: string; hasSolar: boolean; hasBlockout: boolean },
+  ): Promise<LoopTarget> {
+    const known = await target.getState();
+    const planned = await this.activeChargeFor(
+      target,
+      schedules,
+      now,
+      timezone,
+      known,
+    );
+    const isStopped = target.mode === "stop";
+    // allocatedAmps === 0 means the allocator ran and a higher priority
+    // took everything — see VehicleControlState.allocatedAmps
+    const solarTakenByHigherPriority =
+      this.engine.getControlState(target.id).allocatedAmps === 0;
+    await target.requestState({
+      origin: "controller",
+      traceId: loop.traceId,
+      hasSolar: loop.hasSolar && !isStopped && !solarTakenByHigherPriority,
+      hasSchedule: planned !== null || loop.hasBlockout,
+      hasBlockout: loop.hasBlockout,
+      scheduleChargeLimitPct: planned?.effective.chargeLimitPct ?? null,
+    });
+    const state = await target.getState();
+    // Straight after a restart there is no last-known state, so a
+    // solar-aware limit can only be planned from the fresh read.
+    const activeCharge = known === null && state !== null
+      ? await this.activeChargeFor(target, schedules, now, timezone, state)
+      : planned;
+    return {
+      target,
+      vehicle: {
+        id: target.id,
+        vehicleId: target.vehicleId,
+        name: target.name,
+        mode: target.mode,
+        priority: target.priority,
+        state,
+        activeSchedule: activeCharge,
+      },
+    };
+  }
+
   // Execute a single target's decision and produce its log entry. Handles:
   // commands, polling suspension, event emission, transition tracking.
   // The charge schedule covering the target now, with a solar-aware limit
@@ -483,6 +505,7 @@ export class ChargeController {
     schedules: ScheduleRows,
     now: Date,
     timezone: string,
+    state: VehicleChargeState | null,
   ): Promise<ActiveChargeSchedule | null> {
     const scheduled = selectActiveChargeSchedule(
       schedules,
@@ -495,7 +518,7 @@ export class ChargeController {
       scheduled,
       target,
       schedules,
-      await target.getState(),
+      state,
     );
   }
 

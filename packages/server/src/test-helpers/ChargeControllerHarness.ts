@@ -17,7 +17,10 @@ import { AppDatabase } from "../db/AppDatabase.ts";
 import { VehicleManager } from "../services/VehicleManager.ts";
 import { ChargingPointManager } from "../services/ChargingPointManager.ts";
 import type { EnergyPoller } from "../services/EnergyPoller.ts";
-import { ChargeController } from "../services/ChargeController.ts";
+import {
+  ChargeController,
+  type SchedulePlanner,
+} from "../services/ChargeController.ts";
 import { ConfigService } from "../services/ConfigService.ts";
 import type { EnergyAdapterManager } from "../services/EnergyAdapterManager.ts";
 import { Logger } from "../lib/Logger.ts";
@@ -233,6 +236,7 @@ async function buildControllerStack(
   resolveAdapter: (row: VehicleRow) => MockAdapter,
   energy: EnergyData | null,
   configOverrides: Partial<Record<ConfigKey, string>>,
+  planner: SchedulePlanner | null = null,
 ): Promise<ControllerStack> {
   const db = new AppDatabase(":memory:");
   await db.init();
@@ -282,6 +286,7 @@ async function buildControllerStack(
     configService,
     trackingEmitter,
     testControllerLogger,
+    planner,
   );
   // ChargeController auto-starts in its ctor (real setTimeout). Cancel the
   // initial timer so afterEach's stop() doesn't leak it into later tests
@@ -303,13 +308,14 @@ export async function setupController(
   vehicleMode: VehicleMode = "auto",
   energy: EnergyData | null = BASE_ENERGY,
   configOverrides: Partial<Record<ConfigKey, string>> = {},
-  options: { skipInitialState?: boolean } = {},
+  options: { skipInitialState?: boolean; planner?: SchedulePlanner } = {},
 ): Promise<ControllerCtx> {
   const adapter = new MockAdapter(VIN, { ...BASE_STATE, ...vehicleState });
   const stack = await buildControllerStack(
     () => adapter,
     energy,
     configOverrides,
+    options.planner,
   );
   const {
     db,
