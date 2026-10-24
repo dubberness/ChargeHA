@@ -359,12 +359,13 @@ README:
 
 Copy `.env.example` to `.env` and configure:
 
-| Variable         | Default              | Description                                                   |
-| ---------------- | -------------------- | ------------------------------------------------------------- |
-| `PORT`           | `8000`               | HTTP server port                                              |
-| `DB_PATH`        | `./data/chargeha.db` | SQLite database file path                                     |
-| `LOG_LEVEL`      | `info`               | Log verbosity: `debug`, `info`, `warn`, `error`               |
-| `ENCRYPTION_KEY` | _(none)_             | Base64-encoded 256-bit key for encrypting secrets (see below) |
+| Variable           | Default              | Description                                                   |
+| ------------------ | -------------------- | ------------------------------------------------------------- |
+| `PORT`             | `8000`               | HTTP server port                                              |
+| `DB_PATH`          | `./data/chargeha.db` | SQLite database file path                                     |
+| `LOG_LEVEL`        | `info`               | Log verbosity: `debug`, `info`, `warn`, `error`               |
+| `ENCRYPTION_KEY`   | _(none)_             | Base64-encoded 256-bit key for encrypting secrets (see below) |
+| `READONLY_API_KEY` | _(none)_             | Key a LAN dashboard can use for a few reads (see below)       |
 
 All other configuration (Tesla, Fronius, notifications, etc.) is managed via the
 **Settings UI** or **Setup Wizard**.
@@ -394,6 +395,25 @@ Generate one with:
 ```bash
 openssl rand -base64 32
 ```
+
+### Read-only API key
+
+With login on, a dashboard on your network can't read ChargeHA without a
+session. Set `READONLY_API_KEY` (at least 32 characters, e.g.
+`openssl rand -hex 32`) and send it as `Authorization: Bearer <key>`. It only
+works when all of these hold:
+
+- the request is a `GET` to `/trpc/`
+- every procedure in it is on the allowlist in
+  `packages/server/src/middleware/auth.ts` (`charger.list`, `schedule.active`,
+  `config.charging.get`, `config.solar.get`, `forecast.summary` and a few more
+  status reads)
+- it didn't come through a proxy: a request with `X-Forwarded-For`, `Forwarded`,
+  `X-Real-IP`, `CF-Connecting-IP` or `CF-Ray` is refused, so the key is no use
+  over a Cloudflare tunnel or reverse proxy
+
+It can't change anything, and it can't read settings that hold secrets. If login
+is off (`auth_mode` none), you don't need it.
 
 ## Roadmap
 
