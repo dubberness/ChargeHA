@@ -497,6 +497,7 @@ function buildHttpApp(
       configService: services.configService,
       logger: authLogger,
       publicPrefixes: allRoutes.filter((r) => r.public).map((r) => r.fullPath),
+      readonlyApiKey: Deno.env.get("READONLY_API_KEY"),
     }),
   );
   app.route(
