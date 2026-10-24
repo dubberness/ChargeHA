@@ -5,6 +5,7 @@ import type { SolarForecastSummary } from "@chargeha/shared/solarForecast";
 import { renderWithProviders } from "../../../test-utils.tsx";
 import {
   ForecastTooltip,
+  sixHourTicks,
   SolarForecastCard,
   toChartPoints,
   trackingLabel,
@@ -181,5 +182,25 @@ describe("SolarForecastCard", () => {
         actualKw: 2.5,
       }]);
     });
+  });
+});
+
+describe("sixHourTicks", () => {
+  it("picks midnight, 6, noon and 18 on the site's clock", () => {
+    // Half-hourly points from 23:30 to 06:30 Brisbane time (UTC+10).
+    const start = Date.parse("2026-10-24T13:30:00Z");
+    const points = Array.from({ length: 15 }, (_, i) => ({
+      t: start + i * 30 * 60_000,
+      forecastKw: 0,
+      rangeKw: [0, 0] as [number, number],
+      actualKw: null,
+    }));
+
+    const ticks = sixHourTicks(points, "Australia/Brisbane");
+
+    expect(ticks.map((t) => new Date(t).toISOString())).toEqual([
+      "2026-10-24T14:00:00.000Z",
+      "2026-10-24T20:00:00.000Z",
+    ]);
   });
 });

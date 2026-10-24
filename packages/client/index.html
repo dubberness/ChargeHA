@@ -8,7 +8,18 @@
     <!-- Browsers fetch the manifest without cookies unless told otherwise, so
          behind a login proxy it would get the login page and not install. -->
     <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
-    <meta name="theme-color" content="#3E63DD" />
+    <!-- The phone's status and navigation bars take this colour. The app
+         sets both to its own theme once it loads. -->
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#111113"
+      media="(prefers-color-scheme: dark)"
+    />
     <title>ChargeHA</title>
   </head>
   <body>

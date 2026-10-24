@@ -226,18 +226,57 @@ export function ForecastTooltip(
   );
 }
 
+// Ticks every six hours on the site's clock, so the axis reads as times of
+// day rather than odd hours picked to fit.
+export function sixHourTicks(points: ChartPoint[], timezone: string): number[] {
+  const hourOf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  });
+  return points
+    .map((p) => p.t)
+    .filter((t) => {
+      const [hour, minute] = hourOf.format(t).split(":").map(Number);
+      return minute === 0 && hour % 6 === 0;
+    });
+}
+
+// Midnight is labelled with the day it starts; other ticks with the time.
+function useTickLabel(timezone: string): (t: number) => string {
+  return useMemo(() => {
+    const day = new Intl.DateTimeFormat([], {
+      timeZone: timezone,
+      weekday: "short",
+    });
+    // "6 am" where the clock is 12-hour; "06:00" where a bare "06" would
+    // not read as a time.
+    const twelveHour = new Intl.DateTimeFormat([], { hour: "numeric" })
+      .resolvedOptions().hour12 === true;
+    const time = new Intl.DateTimeFormat([], {
+      timeZone: timezone,
+      hour: "numeric",
+      ...(twelveHour ? {} : { minute: "2-digit" }),
+    });
+    const hourOf = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone,
+      hour: "numeric",
+      hourCycle: "h23",
+    });
+    return (t: number) =>
+      Number(hourOf.format(t)) === 0 ? day.format(t) : time.format(t);
+  }, [timezone]);
+}
+
 function ForecastChart(
   { points, timezone }: { points: ChartPoint[]; timezone: string },
 ) {
-  const time = useMemo(
-    () =>
-      new Intl.DateTimeFormat([], {
-        timeZone: timezone,
-        weekday: "short",
-        hour: "numeric",
-      }),
-    [timezone],
-  );
+  const tickLabel = useTickLabel(timezone);
+  const ticks = useMemo(() => sixHourTicks(points, timezone), [
+    points,
+    timezone,
+  ]);
   const hourMinute = useMemo(
     () =>
       new Intl.DateTimeFormat([], {
@@ -261,16 +300,22 @@ function ForecastChart(
             type="number"
             scale="time"
             domain={["dataMin", "dataMax"]}
-            tickFormatter={(t: number) => time.format(t)}
+            ticks={ticks.length > 1 ? ticks : undefined}
+            tickFormatter={tickLabel}
             tick={{ fontSize: 11 }}
-            minTickGap={24}
+            minTickGap={8}
           />
           <YAxis
             tick={{ fontSize: 11 }}
             tickFormatter={(v: number) => `${v} kW`}
             width={52}
           />
-          <Tooltip content={<ForecastTooltip format={hourMinute} />} />
+          {/* Pinned to the top so a finger on the chart doesn't hide it. */}
+          <Tooltip
+            content={<ForecastTooltip format={hourMinute} />}
+            position={{ y: 0 }}
+            wrapperStyle={{ pointerEvents: "none", zIndex: 1 }}
+          />
           <Area
             dataKey="rangeKw"
             name="Likely range"

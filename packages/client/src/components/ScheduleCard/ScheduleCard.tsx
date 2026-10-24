@@ -82,20 +82,20 @@ export function ScheduleCard({
         <div className={styles.actions}>
           <IconButton
             variant="soft"
-            size="1"
+            size="2"
             aria-label="Edit schedule"
             onClick={() => onEdit(schedule)}
           >
-            <Pencil size={14} />
+            <Pencil size={16} />
           </IconButton>
           <IconButton
             variant="soft"
             color="red"
-            size="1"
+            size="2"
             aria-label="Delete schedule"
             onClick={() => onDelete(schedule.id)}
           >
-            <Trash2 size={14} />
+            <Trash2 size={16} />
           </IconButton>
         </div>
       </div>

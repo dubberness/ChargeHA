@@ -370,6 +370,27 @@ function VehicleBatterySection(
   );
 }
 
+// Where the car is: a thumbnail that grows on hover, or on a tap since a
+// phone has no hover.
+function MapThumbnail(
+  { location }: { location: { latitude: number; longitude: number } },
+) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className={`${styles.mapCircle} ${open ? styles.mapOpen : ""}`}
+      onClick={() => setOpen(!open)}
+    >
+      <div className={styles.mapInner}>
+        <StaticMap
+          latitude={location.latitude}
+          longitude={location.longitude}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Every control in one place; the map thumbnail sits in its corner.
 function VehicleCardFooter(
   {
@@ -534,19 +555,7 @@ export function VehicleCard({
         onSetAmps={onSetAmps}
       />
 
-      {/* Location map — small thumbnail, reveals more map on hover */}
-      {lastLocation && (
-        <div className={styles.mapCircle}>
-          <div className={styles.mapInner}>
-            <StaticMap
-              latitude={lastLocation.latitude}
-              longitude={lastLocation.longitude}
-              width={240}
-              height={150}
-            />
-          </div>
-        </div>
-      )}
+      {lastLocation && <MapThumbnail location={lastLocation} />}
     </Card>
   );
 }

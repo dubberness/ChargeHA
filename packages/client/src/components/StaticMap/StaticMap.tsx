@@ -1,3 +1,5 @@
+import styles from "./StaticMap.module.css";
+
 // ── Tile math for OpenStreetMap ──
 
 function latLngToTileFloat(lat: number, lng: number, zoom: number) {
@@ -81,13 +83,7 @@ export function StaticMap(
   return (
     <div style={wrapperStyle}>
       {/* Tile layer */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          filter: "grayscale(1) opacity(0.4)",
-        }}
-      >
+      <div className={styles.tiles}>
         <div
           style={{
             display: "grid",

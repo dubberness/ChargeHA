@@ -77,6 +77,13 @@ type LogTab =
   | "vehicle-updates"
   | "plugin-logs";
 
+const LOG_TABS: { value: LogTab; label: string; short: string }[] = [
+  { value: "charge-control", label: "Charge Control", short: "Charge" },
+  { value: "energy-reads", label: "Energy Reads", short: "Energy" },
+  { value: "vehicle-updates", label: "Vehicle Updates", short: "Vehicle" },
+  { value: "plugin-logs", label: "Plugin Logs", short: "Plugin" },
+];
+
 function readFiltersFromUrl(): {
   tab?: LogTab;
   vehicle?: string;
@@ -401,11 +408,18 @@ export function Logs() {
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as LogTab)}
       >
+        {/* A phone shows the short names so all four tabs fit. */}
         <Tabs.List>
-          <Tabs.Trigger value="charge-control">Charge Control</Tabs.Trigger>
-          <Tabs.Trigger value="energy-reads">Energy Reads</Tabs.Trigger>
-          <Tabs.Trigger value="vehicle-updates">Vehicle Updates</Tabs.Trigger>
-          <Tabs.Trigger value="plugin-logs">Plugin Logs</Tabs.Trigger>
+          {LOG_TABS.map((tab) => (
+            <Tabs.Trigger
+              key={tab.value}
+              value={tab.value}
+              className={styles.tab}
+              data-short={tab.short}
+            >
+              {tab.label}
+            </Tabs.Trigger>
+          ))}
         </Tabs.List>
 
         <Tabs.Content value="charge-control">
