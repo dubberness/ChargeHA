@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Browsers fetch the manifest without cookies unless told otherwise, so
+         behind a login proxy it would get the login page and not install. -->
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <meta name="theme-color" content="#3E63DD" />
     <title>ChargeHA</title>
   </head>
