@@ -52,6 +52,7 @@ import {
   hstsMiddleware,
   isHttps,
 } from "../middleware/auth.ts";
+import { createHealthRoutes } from "../routes/health.ts";
 import { createOidcRoutes } from "../routes/oidcAuth.ts";
 import { createAppRouter } from "../trpc/root.ts";
 import type { TrpcContext } from "../trpc/trpc.ts";
@@ -506,6 +507,8 @@ function buildHttpApp(
       logger: authLogger,
     }),
   );
+
+  app.route("/health", createHealthRoutes());
 
   allRoutes
     .filter((r) => !r.public)
