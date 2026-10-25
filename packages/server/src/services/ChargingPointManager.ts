@@ -29,6 +29,14 @@ const MAX_COMMAND_BACKOFF_SEC = 900;
 // A car's API can accept an amps command that the car then drops (a car still
 // ramping often does). After this long the command is sent again.
 const RESEND_UNAPPLIED_AMPS_MS = 60_000;
+// A car still drawing after its API accepted a stop is charging on its own
+// account: preconditioning, or a schedule of its own. Sending the stop again
+// every loop only floods its API, so once it has ignored a few the next
+// waits 1, 2, 4, 8, then 15 minutes.
+const IGNORED_STOPS_BEFORE_HOLD = 3;
+const IGNORED_STOP_WINDOW_MS = 5 * 60_000;
+const FIRST_STOP_HOLD_MS = 60_000;
+const MAX_STOP_HOLD_MS = 15 * 60_000;
 
 const watts = (kw: number | null | undefined): number => (kw ?? 0) * 1000;
 
@@ -45,6 +53,11 @@ interface ChargerEntry {
   // Set when a passive point has been given its standing permission for the
   // current plug-in. Cleared on unplug and when control comes back.
   heldOpen?: boolean;
+  // Stops the car has carried on charging through, and when the next one
+  // may be sent. See IGNORED_STOPS_BEFORE_HOLD.
+  lastStopAtMs?: number;
+  ignoredStops?: number;
+  stopHoldUntilMs?: number;
 }
 
 export interface VehicleResolution {
@@ -419,6 +432,7 @@ export class ChargingPointManager {
         );
         if (!ok) throw new Error("startCharging rejected");
         this.logger.info(`Started ${shortId(id)} at ${clamped}A`);
+        this.clearStopHold(id);
         if (!ampsOk) {
           this.logger.warn(
             `setChargeAmps(${clamped}) rejected before start for ${id}; ` +
@@ -466,9 +480,15 @@ export class ChargingPointManager {
   ): Promise<{ success: boolean; error?: string }> {
     const entry = this.chargers.get(id);
     if (!entry) return { success: false, error: "Charger not registered" };
-    if (!state.isCharging) return { success: true };
+    if (!state.isCharging) {
+      this.clearStopHold(id);
+      return { success: true };
+    }
     if (this.isBackedOff(id).backedOff && !force) {
       return { success: false, error: "Command backoff active" };
+    }
+    if (!force && (entry.stopHoldUntilMs ?? 0) > Date.now()) {
+      return { success: false, error: "Car is charging through stops" };
     }
     try {
       const ok = await entry.middleware.stopCharging(
@@ -477,6 +497,7 @@ export class ChargingPointManager {
       if (!ok) throw new Error("stopCharging rejected");
       entry.lastCommandedAmps = null;
       this.logger.info(`Stopped ${shortId(id)}`);
+      this.noteStopSent(id);
       await this.resetCommandBackoff(id);
       return { success: true };
     } catch (error) {
@@ -895,6 +916,37 @@ export class ChargingPointManager {
     const accepted = await entry.middleware.softReset(ctx);
     if (accepted === null) return { error: "Not supported by this charger" };
     return { accepted };
+  }
+
+  // Counts a stop as ignored when the car is still charging within a few
+  // minutes of the last one (or of the last hold ending).
+  private noteStopSent(id: string): void {
+    const entry = this.chargers.get(id);
+    if (!entry) return;
+    const now = Date.now();
+    const last = Math.max(entry.lastStopAtMs ?? 0, entry.stopHoldUntilMs ?? 0);
+    const ignored = now - last < IGNORED_STOP_WINDOW_MS
+      ? (entry.ignoredStops ?? 0) + 1
+      : 0;
+    entry.lastStopAtMs = now;
+    entry.ignoredStops = ignored;
+    const over = ignored - IGNORED_STOPS_BEFORE_HOLD;
+    if (over < 0) return;
+    const holdMs = Math.min(MAX_STOP_HOLD_MS, FIRST_STOP_HOLD_MS * 2 ** over);
+    entry.stopHoldUntilMs = now + holdMs;
+    this.logger.warn(
+      `${shortId(id)} is still charging after ${ignored + 1} stops — ` +
+        `it may be preconditioning or on its own schedule. ` +
+        `Next stop in ${Math.round(holdMs / 60_000)} min`,
+    );
+  }
+
+  private clearStopHold(id: string): void {
+    const entry = this.chargers.get(id);
+    if (!entry) return;
+    entry.lastStopAtMs = undefined;
+    entry.ignoredStops = 0;
+    entry.stopHoldUntilMs = undefined;
   }
 
   isBackedOff(id: string): { backedOff: boolean; remainingMs: number } {
