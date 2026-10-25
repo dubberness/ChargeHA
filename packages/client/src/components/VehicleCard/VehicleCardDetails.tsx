@@ -225,8 +225,9 @@ function AmpsControl(
     <Tooltip content="Start charging to adjust amps" hidden={state.isCharging}>
       <div className={styles.ampsControl}>
         <Button
-          variant="ghost"
-          size="1"
+          variant="soft"
+          color="gray"
+          size="2"
           disabled={disabled || !state.isCharging ||
             state.chargeAmps <= state.chargeAmpsMin}
           onClick={() =>
@@ -234,10 +235,13 @@ function AmpsControl(
         >
           {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
-        <Text size="2" weight="bold">{ampsValue(state.chargeAmps)}</Text>
+        <Text size="2" weight="bold" className={styles.ampsValue}>
+          {ampsValue(state.chargeAmps)}
+        </Text>
         <Button
-          variant="ghost"
-          size="1"
+          variant="soft"
+          color="gray"
+          size="2"
           disabled={disabled || !state.isCharging ||
             state.chargeAmps >= state.chargeAmpsMax}
           onClick={() =>

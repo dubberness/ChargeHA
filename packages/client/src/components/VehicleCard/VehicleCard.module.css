@@ -22,7 +22,8 @@
     border-radius 0.3s ease;
 }
 
-.mapCircle:hover {
+.mapCircle:hover,
+.mapOpen {
   width: 240px;
   height: 150px;
   opacity: 1;
@@ -31,21 +32,10 @@
   z-index: 10;
 }
 
+/* The map fills the frame and keeps the car in its centre as it grows. */
 .mapInner {
-  position: relative;
-  width: 240px;
-  height: 150px;
-  /* Offset so the center of the map (where the dot is) shows
-     in the small 80x48 thumbnail window. The thumbnail clips from
-     top-left, so shift the inner map up and left by half the difference. */
-  top: -51px;
-  left: -80px;
-  transition: top 0.4s ease, left 0.4s ease;
-}
-
-.mapCircle:hover .mapInner {
-  top: 0;
-  left: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .batterySection {
@@ -147,7 +137,63 @@
 .ampsControl {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+.ampsValue {
+  min-width: 3ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  /* Two tiles a row; an odd one out takes the whole row. */
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* The controls get the card's full width; the map moves below them. */
+  .footerMap {
+    min-height: 0;
+    padding-right: 0;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .controls button {
+    --base-button-height: 40px;
+    height: 40px;
+  }
+
+  .ampsControl button {
+    min-width: 40px;
+  }
+
+  .mapCircle,
+  .mapCircle:hover {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    width: 100%;
+    height: 72px;
+    margin-top: 12px;
+    opacity: 1;
+    box-shadow: none;
+    border-radius: 10px;
+  }
+
+  .mapOpen,
+  .mapOpen:hover {
+    height: 200px;
+  }
 }
 
 /* The shared toggle carries its own bottom margin; the footer's gap does

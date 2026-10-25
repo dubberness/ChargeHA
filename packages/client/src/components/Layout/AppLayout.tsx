@@ -128,8 +128,12 @@ export function AppLayout(
             Charge<span className={styles.accent}>HA</span>
           </Text>
         </div>
+        {
+          /* A row of links in the header; a tab bar along the bottom on a
+            phone, where the icons show. */
+        }
         <nav className={styles.nav}>
-          {NAV_ITEMS.map(({ page, label }) => (
+          {NAV_ITEMS.map(({ page, label, icon: Icon }) => (
             <Text
               key={page}
               size="2"
@@ -137,8 +141,9 @@ export function AppLayout(
               className={activePage === page
                 ? styles.navLinkActive
                 : styles.navLink}
-              onClick={() => onNavigate(page)}
+              onClick={() => handleNavigate(page)}
             >
+              <Icon size={20} className={styles.navIcon} aria-hidden />
               {label}
             </Text>
           ))}

@@ -166,6 +166,7 @@ export function LogEntryCard(
                 size="1"
                 variant="soft"
                 color="gray"
+                className={styles.traceBadge}
                 style={{ fontFamily: "monospace" }}
               >
                 {entry.traceId}

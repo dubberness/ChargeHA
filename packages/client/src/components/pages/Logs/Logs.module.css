@@ -42,8 +42,9 @@
 
 .logTopRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
 }
 
 .chevron {
@@ -58,8 +59,10 @@
 
 .badges {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .ampsLabel {
@@ -236,4 +239,24 @@
 
 .spin {
   animation: spin 0.6s linear 1;
+}
+
+@media (max-width: 600px) {
+  /* The full name stays as the tab's accessible name. */
+  .tab > span {
+    display: none;
+  }
+
+  .tab::after {
+    content: attr(data-short);
+  }
+
+  /* The trace id is for matching rows across tabs, which is a desk job. */
+  .traceBadge {
+    display: none;
+  }
+
+  .logEntry {
+    padding: 10px 12px;
+  }
 }

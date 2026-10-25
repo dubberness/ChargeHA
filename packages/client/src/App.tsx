@@ -79,6 +79,21 @@ function renderRoute(
   );
 }
 
+const THEME_COLORS: Record<Appearance, string> = {
+  light: "#ffffff",
+  dark: "#111113",
+};
+
+// Matches the phone's status and navigation bars to the page, whichever
+// theme is picked, rather than leaving them the system default.
+function useThemeColor(appearance: Appearance) {
+  useEffect(() => {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) =>
+      meta.setAttribute("content", THEME_COLORS[appearance])
+    );
+  }, [appearance]);
+}
+
 function AppContent() {
   const prefersDark =
     globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -87,6 +102,7 @@ function AppContent() {
     "theme",
     systemDefault,
   );
+  useThemeColor(appearance);
   const toggleAppearance = useCallback(() => {
     setAppearance(appearance === "dark" ? "light" : "dark");
   }, [appearance, setAppearance]);

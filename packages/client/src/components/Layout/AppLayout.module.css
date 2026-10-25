@@ -37,6 +37,8 @@
 
 .navLinkActive,
 .navLink {
+  display: flex;
+  align-items: center;
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
@@ -77,6 +79,11 @@
   margin: 0 auto;
 }
 
+/* Only the phone tab bar shows the icons. */
+.navIcon {
+  display: none;
+}
+
 /* Hamburger button — hidden on desktop */
 .menuButton {
   display: none;
@@ -98,9 +105,62 @@
     gap: 8px;
   }
 
-  /* Hide desktop nav on mobile */
+  /* The header stays put while the page scrolls under it. */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background-color: var(--color-background);
+  }
+
+  /* The nav becomes a tab bar along the bottom, in thumb reach. */
   .nav {
-    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--gray-a5);
+    background-color: var(--color-background);
+  }
+
+  .navLinkActive,
+  .navLink {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    padding: 4px 2px;
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .navLinkActive {
+    background-color: transparent;
+  }
+
+  .navLinkActive .navIcon {
+    background-color: var(--accent-a4);
+  }
+
+  .navLink:hover {
+    background-color: transparent;
+  }
+
+  .navIcon {
+    display: block;
+    box-sizing: content-box;
+    padding: 3px 14px;
+    border-radius: 999px;
   }
 
   /* Push status + hamburger to the right */
@@ -165,7 +225,8 @@
     color: var(--gray-11);
   }
 
+  /* Room at the bottom so the tab bar never covers the last card. */
   .main {
-    padding: 16px 12px;
+    padding: 16px 12px calc(84px + env(safe-area-inset-bottom));
   }
 }

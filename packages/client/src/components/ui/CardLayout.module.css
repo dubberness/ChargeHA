@@ -58,3 +58,20 @@
   gap: 6px;
   color: var(--gray-11);
 }
+
+/* On a phone the mode buttons share the card's width at a size a thumb can
+   hit. */
+@media (max-width: 600px) {
+  .modeToggle {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .modeToggle > button {
+    --base-button-height: 40px;
+    height: 40px;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+}
