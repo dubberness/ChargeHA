@@ -133,12 +133,17 @@ function trpcProcedures(path: string): string[] {
   }
 }
 
-function isReadonlyRequest(req: Request, path: string): boolean {
+// A /trpc/ path made only of allowlisted procedures, on a request that didn't
+// come through a proxy. Shared with the read-only CORS middleware.
+export function isReadonlyTrpcPath(req: Request, path: string): boolean {
   const procedures = trpcProcedures(path);
-  return req.method === "GET" &&
-    procedures.length > 0 &&
+  return procedures.length > 0 &&
     procedures.every((name) => READONLY_TRPC_PROCEDURES.has(name)) &&
     !PROXY_HEADERS.some((header) => req.headers.has(header));
+}
+
+function isReadonlyRequest(req: Request, path: string): boolean {
+  return req.method === "GET" && isReadonlyTrpcPath(req, path);
 }
 
 async function sha256(text: string): Promise<Uint8Array> {
