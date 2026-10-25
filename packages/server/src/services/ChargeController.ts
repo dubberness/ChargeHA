@@ -442,6 +442,7 @@ export class ChargeController {
       latitude: vehicle?.latitude ?? null,
       longitude: vehicle?.longitude ?? null,
       isHome: vehicle?.isHome ?? null,
+      isConditioning: vehicle?.isConditioning ?? false,
     };
   }
 

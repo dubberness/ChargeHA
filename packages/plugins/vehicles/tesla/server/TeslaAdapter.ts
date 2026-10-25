@@ -108,7 +108,7 @@ export class TeslaAdapter implements VehicleAdapter {
     // query-param separator and silently drops everything after the
     // first endpoint, leaving drive_state / vehicle_state missing.
     const endpoints = encodeURIComponent(
-      "charge_state;vehicle_state;location_data",
+      "charge_state;climate_state;vehicle_state;location_data",
     );
     const data = await this.fleetApiGet<TeslaVehicleData>(
       `/api/1/vehicles/${this.vin}/vehicle_data?endpoints=${endpoints}`,

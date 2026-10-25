@@ -7,6 +7,7 @@ import {
   Plug,
   PlugZap,
   ShieldBan,
+  Thermometer,
   Unplug,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -24,6 +25,7 @@ const VISIBLE_REASONS = new Set([
   "displaced",
   "cooldown",
   "battery_priority",
+  "conditioning",
 ]);
 
 const REASON_ICONS: Record<string, LucideIcon> = {
@@ -33,6 +35,7 @@ const REASON_ICONS: Record<string, LucideIcon> = {
   displaced: ListOrdered,
   cooldown: CloudSun,
   battery_priority: BatteryCharging,
+  conditioning: Thermometer,
 };
 
 const REASON_COLORS: Record<string, "blue" | "orange"> = {
@@ -42,6 +45,7 @@ const REASON_COLORS: Record<string, "blue" | "orange"> = {
   displaced: "orange",
   cooldown: "orange",
   battery_priority: "orange",
+  conditioning: "blue",
 };
 
 interface VehicleCardDetailsProps {

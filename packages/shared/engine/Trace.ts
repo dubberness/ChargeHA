@@ -14,6 +14,7 @@ export type TraceName =
   | "amp_debounce"
   | "steady_solar"
   | "grace_period"
+  | "conditioning"
   | "solar_allocation";
 
 // One diagnostic line recorded while a step runs. Purely informational —
@@ -253,6 +254,13 @@ export class Trace {
     return {
       check: "grace_period",
       result: `active (${elapsedSec}s < ${graceSec}s)`,
+    };
+  }
+
+  static conditioning(heldBack: string): StepTrace {
+    return {
+      check: "conditioning",
+      result: `preheating — held back: ${heldBack}`,
     };
   }
 
