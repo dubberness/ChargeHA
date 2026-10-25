@@ -62,6 +62,9 @@ export interface VehicleChargeState {
   latitude: number | null; // GPS latitude (null if unavailable)
   longitude: number | null; // GPS longitude (null if unavailable)
   isHome: boolean | null; // computed by VehicleManager; null = unknown
+  // Climate or battery heating is running and drawing power — a plugged-in
+  // car then reports this as charging. Absent = the vehicle doesn't say.
+  isConditioning?: boolean;
 }
 
 export type AdapterVehicleChargeState = Omit<VehicleChargeState, "isHome">;

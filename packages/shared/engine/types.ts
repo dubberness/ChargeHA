@@ -136,6 +136,7 @@ export type DecisionReason =
   | "not_plugged_in"
   | "away_from_home"
   | "no_state"
+  | "conditioning"
   | "idle";
 
 // A single vehicle's decision — what to do, not how to do it.

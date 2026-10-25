@@ -77,6 +77,19 @@ describe("statusHeadline", () => {
     expect(headline?.detail).toBe("4.0 kW of 6.0 kW solar");
   });
 
+  it("says the car is preheating when the controller holds it for that", () => {
+    const status = { reason: "conditioning", detail: "Holding at 5A" };
+
+    expect(
+      statusHeadline(
+        [charging({}, 1.2)],
+        { "cp-1": { solarW: 300, gridW: 900 } },
+        { "cp-1": status },
+        { solarProductionW: 300, gridPowerW: 900 },
+      )?.title,
+    ).toBe("Model 3 is preheating");
+  });
+
   it("still names the charge before energy data arrives", () => {
     expect(statusHeadline([charging()], {}, {}, null)).toEqual({
       tone: "charging",

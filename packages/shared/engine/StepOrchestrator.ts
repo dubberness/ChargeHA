@@ -1,5 +1,6 @@
 import { Steps } from "./Steps.ts";
 import type { Step, StepContext } from "./Steps.ts";
+import { Trace } from "./Trace.ts";
 import type { StepTrace } from "./Trace.ts";
 import type { ControlStateUpdates, VehicleDecision } from "./types.ts";
 
@@ -31,7 +32,41 @@ export class StepOrchestrator {
   ];
 
   static run(ctx: StepContext): StepRunResult {
-    return StepOrchestrator.runFrom(ctx, 0, []);
+    return StepOrchestrator.holdWhileConditioning(
+      ctx.state,
+      StepOrchestrator.runFrom(ctx, 0, []),
+    );
+  }
+
+  // A car heating or cooling itself on the cable reports the draw as
+  // charging and keeps drawing through a stop, so stopping (or counting down
+  // to a stop) only spams commands. Hold it at minimum amps instead, which
+  // is the least it can take from the wall; the car tops up the rest from
+  // its battery. Stop mode is the user's own call and still stops.
+  private static holdWhileConditioning(
+    state: StepContext["state"],
+    result: StepRunResult,
+  ): StepRunResult {
+    const { decision } = result;
+    if (state.isConditioning !== true || !state.isCharging) return result;
+    if (decision.reason === "mode_stop") return result;
+    if (decision.action !== "stop" && decision.reason !== "grace_period") {
+      return result;
+    }
+    const min = state.chargeAmpsMin;
+    const lower = state.chargeAmps > min;
+    return {
+      decision: {
+        action: lower ? "adjust_amps" : "none",
+        reason: "conditioning",
+        detail: lower
+          ? `Adjust to ${min}A (min) — car is preheating, a stop would not end the draw`
+          : `Holding at ${min}A — car is preheating, a stop would not end the draw`,
+        targetAmps: lower ? min : null,
+        checks: [...decision.checks, Trace.conditioning(decision.detail)],
+      },
+      stateUpdates: { graceStartedAt: null, graceNotified: false },
+    };
   }
 
   private static runFrom(

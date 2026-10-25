@@ -53,9 +53,23 @@ function allSolarDetail(totalW: number, realtime: Realtime): string {
   return `${kwValue(totalW)} of ${solar} solar${exportNote(realtime)}`;
 }
 
+// The controller holds a preheating car rather than stopping it; the draw
+// is then the car's climate, not the battery filling up.
+function preheatingTitle(
+  charging: HeadlinePoint[],
+  who: string,
+  statuses: Statuses,
+) {
+  const heating = (p: HeadlinePoint) =>
+    statuses[p.id]?.reason === "conditioning";
+  if (!charging.every(heating)) return null;
+  return `${who} ${charging.length === 1 ? "is" : "are"} preheating`;
+}
+
 function chargingHeadline(
   charging: HeadlinePoint[],
   split: PowerSplit,
+  statuses: Statuses,
   realtime: Realtime,
 ): StatusHeadline {
   const who = charging.length === 1
@@ -65,7 +79,7 @@ function chargingHeadline(
   if (!realtime) {
     return {
       tone: "charging",
-      title: `Charging ${who}`,
+      title: preheatingTitle(charging, who, statuses) ?? `Charging ${who}`,
       detail: kwValue(totalW),
     };
   }
@@ -75,7 +89,12 @@ function chargingHeadline(
   const detail = solarPct >= 100
     ? allSolarDetail(totalW, realtime)
     : `${kwValue(totalW)} · ${kwValue(solarW)} solar, ${kwValue(gridW)} grid`;
-  return { tone: "charging", title: sourceTitle(who, solarPct), detail };
+  return {
+    tone: "charging",
+    title: preheatingTitle(charging, who, statuses) ??
+      sourceTitle(who, solarPct),
+    detail,
+  };
 }
 
 function sparePower(realtime: Realtime): string | null {
@@ -121,7 +140,9 @@ export function statusHeadline(
   const charging = points.filter((p) =>
     p.state?.isCharging && (p.state.chargePowerKw ?? 0) > 0
   );
-  if (charging.length > 0) return chargingHeadline(charging, split, realtime);
+  if (charging.length > 0) {
+    return chargingHeadline(charging, split, statuses, realtime);
+  }
 
   const pluggedIn = [...points]
     .sort((a, b) => a.priority - b.priority)

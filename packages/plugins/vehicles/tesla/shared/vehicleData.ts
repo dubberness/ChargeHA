@@ -15,8 +15,16 @@ export interface TeslaChargeState {
   charge_energy_added?: number;
   minutes_to_full_charge?: number;
   charge_port_door_open?: boolean;
+  battery_heater_on?: boolean;
   // When the car took this reading, in epoch ms.
   timestamp?: number;
+}
+
+export interface TeslaClimateState {
+  is_climate_on?: boolean;
+  is_preconditioning?: boolean;
+  battery_heater?: boolean;
+  cabin_overheat_protection_actively_cooling?: boolean;
 }
 
 export interface TeslaVehicleState {
@@ -31,6 +39,7 @@ export interface TeslaDriveState {
 
 export interface TeslaVehicleData {
   charge_state: TeslaChargeState;
+  climate_state?: TeslaClimateState;
   vehicle_state?: TeslaVehicleState;
   drive_state?: TeslaDriveState;
   state?: string;
@@ -54,6 +63,17 @@ function correctThreePhase(
 
   const ratio = powerKw / ((amps * volts) / 1000);
   return ratio >= 2.6 && ratio <= 3.4 ? 3 : reported;
+}
+
+// Plugged in, a Tesla runs its climate and battery heater off the wall and
+// reports the draw as charging, so a stop command doesn't end it.
+function isConditioning(data: TeslaVehicleData): boolean {
+  const climate = data.climate_state;
+  return climate?.is_climate_on === true ||
+    climate?.is_preconditioning === true ||
+    climate?.battery_heater === true ||
+    climate?.cabin_overheat_protection_actively_cooling === true ||
+    data.charge_state.battery_heater_on === true;
 }
 
 const NOT_CHARGING_STATES = ["Disconnected", "Stopped", "Complete", "NoPower"];
@@ -108,6 +128,7 @@ export function toAdapterChargeState(
     lastUpdated: readingTime(charge.timestamp),
     latitude: drive?.latitude ?? null,
     longitude: drive?.longitude ?? null,
+    isConditioning: isConditioning(data),
   };
 }
 
