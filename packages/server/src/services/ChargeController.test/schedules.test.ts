@@ -10,6 +10,7 @@ import {
   setupController,
   VIN,
 } from "../../test-helpers/ChargeControllerHarness.ts";
+import type { SchedulePlanner } from "../ChargeController.ts";
 
 describe("ChargeController — schedules", () => {
   let ctx: ControllerCtx | undefined;
@@ -74,6 +75,39 @@ describe("ChargeController — schedules", () => {
 
       expect(ctx.adapter.commands).toContainEqual({ cmd: "setAmps", args: 14 });
       expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
+    });
+
+    it("plans a solar-aware limit from the first read after a restart", async () => {
+      const { today, startTime, endTime } = currentScheduleWindow();
+      // Like the real planner: it needs the car's state, and lowers the
+      // limit below the car's 60% once it has it.
+      const planner: SchedulePlanner = {
+        planSchedule: (active, _target, _schedules, state) => {
+          if (!active || !state) return Promise.resolve(active);
+          const effective = { ...active.effective, chargeLimitPct: 50 };
+          return Promise.resolve({ ...active, effective });
+        },
+      };
+
+      ctx = await setupController({}, "auto", null, {}, {
+        skipInitialState: true,
+        planner,
+      });
+      await ctx.db.createSchedule({
+        id: "charge-solar-aware",
+        vehicleId: VIN,
+        chargerId: null,
+        scheduleType: "charge",
+        startTime,
+        endTime,
+        days: [today],
+        chargeAmps: 15,
+        chargeLimitPct: 100,
+        enabled: true,
+      });
+      await ctx.runOneLoop();
+
+      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
     });
 
     it("ignores a charge schedule keyed to a different charger", async () => {
