@@ -364,13 +364,14 @@ README:
 
 Copy `.env.example` to `.env` and configure:
 
-| Variable           | Default              | Description                                                   |
-| ------------------ | -------------------- | ------------------------------------------------------------- |
-| `PORT`             | `8000`               | HTTP server port                                              |
-| `DB_PATH`          | `./data/chargeha.db` | SQLite database file path                                     |
-| `LOG_LEVEL`        | `info`               | Log verbosity: `debug`, `info`, `warn`, `error`               |
-| `ENCRYPTION_KEY`   | _(none)_             | Base64-encoded 256-bit key for encrypting secrets (see below) |
-| `READONLY_API_KEY` | _(none)_             | Key a LAN dashboard can use for a few reads (see below)       |
+| Variable                | Default              | Description                                                   |
+| ----------------------- | -------------------- | ------------------------------------------------------------- |
+| `PORT`                  | `8000`               | HTTP server port                                              |
+| `DB_PATH`               | `./data/chargeha.db` | SQLite database file path                                     |
+| `LOG_LEVEL`             | `info`               | Log verbosity: `debug`, `info`, `warn`, `error`               |
+| `ENCRYPTION_KEY`        | _(none)_             | Base64-encoded 256-bit key for encrypting secrets (see below) |
+| `READONLY_API_KEY`      | _(none)_             | Key a LAN dashboard can use for a few reads (see below)       |
+| `READONLY_CORS_ORIGINS` | _(none)_             | Web pages allowed to make those reads from the browser        |
 
 All other configuration (Tesla, Fronius, notifications, etc.) is managed via the
 **Settings UI** or **Setup Wizard**.
@@ -419,6 +420,12 @@ works when all of these hold:
 
 It can't change anything, and it can't read settings that hold secrets. If login
 is off (`auth_mode` none), you don't need it.
+
+To make those reads from a web page on another address (a wall panel served by
+Home Assistant, say), list the page's origin in `READONLY_CORS_ORIGINS`,
+comma-separated and exact, e.g. `http://192.168.1.133`. Only the allowlisted
+reads get CORS headers, and never with credentials, so a page can use the key
+but not a logged-in browser's session.
 
 ## Roadmap
 

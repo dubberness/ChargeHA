@@ -30,6 +30,10 @@ import { ConfigService } from "../services/ConfigService.ts";
 import { GeocodeService } from "../services/GeocodeService.ts";
 import { OidcService } from "../services/OidcService.ts";
 import { RateLimiter } from "../middleware/rateLimit.ts";
+import {
+  createReadonlyCorsMiddleware,
+  parseCorsOrigins,
+} from "../middleware/readonlyCors.ts";
 import { AuthService } from "../services/AuthService.ts";
 import { ScheduleService } from "../services/ScheduleService.ts";
 import { TunnelManager } from "../services/TunnelManager.ts";
@@ -491,6 +495,12 @@ function buildHttpApp(
   app.use(hstsMiddleware());
 
   const authLogger = new Logger("Auth", logLevel);
+  // Before auth, so the browser's preflight (which carries no key) is answered.
+  app.use(
+    createReadonlyCorsMiddleware(
+      parseCorsOrigins(Deno.env.get("READONLY_CORS_ORIGINS"), authLogger),
+    ),
+  );
   app.use(
     createAuthMiddleware({
       authService: services.authService,
