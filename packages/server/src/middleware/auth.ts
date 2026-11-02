@@ -43,6 +43,7 @@ const READONLY_TRPC_PROCEDURES: ReadonlySet<string> = new Set([
   "config.solar.get",
   "energy.getPlugins",
   "energy.realtime",
+  "forecast.projections",
   "forecast.status",
   "forecast.summary",
   "health.pluginWarnings",

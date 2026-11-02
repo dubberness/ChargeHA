@@ -22,6 +22,7 @@ describe("read-only API key", () => {
     const appRouter = t.router({
       charger: t.router({ list: read("charger.list") }),
       schedule: t.router({ active: read("schedule.active") }),
+      forecast: t.router({ projections: read("forecast.projections") }),
       config: t.router({
         notification: t.router({ get: read("config.notification.get") }),
       }),
@@ -66,6 +67,18 @@ describe("read-only API key", () => {
 
     expect(res.status).toBe(200);
     expect(ran).toEqual(["charger.list", "schedule.active"]);
+  });
+
+  it("allows the solar projection, for the wall panel's car card", async () => {
+    const { app, ran } = setup();
+
+    const res = await app.request(
+      "/trpc/forecast.projections?batch=1&input=%7B%7D",
+      { headers: bearer() },
+    );
+
+    expect(res.status).toBe(200);
+    expect(ran).toEqual(["forecast.projections"]);
   });
 
   it("refuses the wrong key", async () => {
